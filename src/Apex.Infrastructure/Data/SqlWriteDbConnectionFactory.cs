@@ -1,0 +1,35 @@
+namespace Apex.Infrastructure.Data;
+
+using System.Data.Common;
+using Apex.Application.Abstractions.Data;
+using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Configuration;
+
+public sealed class SqlWriteDbConnectionFactory : IWriteDbConnectionFactory
+{
+    private readonly IConfiguration _configuration;
+    private readonly IModuleDatabaseResolver _moduleDatabaseResolver;
+
+    public SqlWriteDbConnectionFactory(
+        IConfiguration configuration,
+        IModuleDatabaseResolver moduleDatabaseResolver)
+    {
+        _configuration = configuration;
+        _moduleDatabaseResolver = moduleDatabaseResolver;
+    }
+
+    public async Task<DbConnection> OpenConnectionAsync(
+        string moduleName,
+        CancellationToken cancellationToken = default)
+    {
+        var connectionStringName = _moduleDatabaseResolver.GetWriteConnectionStringName(moduleName);
+
+        var connectionString = _configuration.GetConnectionString(connectionStringName)
+            ?? throw new InvalidOperationException(
+                $"Connection string '{connectionStringName}' is missing.");
+
+        var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+        return connection;
+    }
+}

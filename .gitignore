@@ -1,0 +1,88 @@
+# ------------------------------
+# Build output
+# ------------------------------
+bin/
+obj/
+out/
+publish/
+artifacts/
+TestResults/
+
+# ------------------------------
+# Rider / JetBrains
+# ------------------------------
+.idea/
+*.sln.iml
+*.slnx.iml
+.idea_modules/
+
+# ------------------------------
+# Visual Studio / VS Code
+# ------------------------------
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# ------------------------------
+# .NET
+# ------------------------------
+*.nupkg
+*.snupkg
+project.lock.json
+project.assets.json
+*.nuget.props
+*.nuget.targets
+
+# ------------------------------
+# Logs
+# ------------------------------
+*.log
+logs/
+serilog*.json
+
+# ------------------------------
+# Local config / secrets
+# ------------------------------
+appsettings.Local.json
+appsettings.*.Local.json
+*.secrets.json
+.env
+.env.*
+!.env.example
+
+# ------------------------------
+# Database / migrations runtime
+# ------------------------------
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# ------------------------------
+# Coverage
+# ------------------------------
+coverage/
+coverage.xml
+coverage.cobertura.xml
+lcov.info
+*.coverage
+*.coveragexml
+
+# ------------------------------
+# OS files
+# ------------------------------
+.DS_Store
+Thumbs.db
+
+# ------------------------------
+# Temporary files
+# ------------------------------
+*.tmp
+*.temp
+*.bak
+*.swp
+*.orig
