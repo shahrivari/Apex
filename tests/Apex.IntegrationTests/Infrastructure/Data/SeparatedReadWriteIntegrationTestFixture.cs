@@ -102,6 +102,15 @@ public sealed class SeparatedReadWriteIntegrationTestFixture : IAsyncLifetime
                 "Database migration failed.",
                 result.Error);
         }
+
+        result = DatabaseMigrationRunner.RunTestMigrations(connectionString);
+
+        if (!result.Successful)
+        {
+            throw new InvalidOperationException(
+                "Test migration failed.",
+                result.Error);
+        }
     }
 
     private async Task SeedDatabaseMarkersAsync()

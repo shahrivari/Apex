@@ -19,4 +19,19 @@ public static class DatabaseMigrationRunner
 
         return upgrader.PerformUpgrade();
     }
+
+    public static DatabaseUpgradeResult RunTestMigrations(
+        string connectionString)
+    {
+        var upgrader = DeployChanges.To
+            .SqlDatabase(connectionString)
+            .WithScriptsEmbeddedInAssembly(
+                typeof(DatabaseMigrationRunner).Assembly,
+                script => script.Contains(".Scripts.Test.Accounting."))
+            .LogToConsole()
+            .WithTransactionPerScript()
+            .Build();
+
+        return upgrader.PerformUpgrade();
+    }
 }

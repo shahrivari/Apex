@@ -209,6 +209,13 @@ Capability-first structure keeps related code together and makes business bounda
 
 A capability should use this structure by default:
 
+Use-case folders are grouped under a `UseCases/` subfolder. This keeps the
+capability root organized and separates concerns:
+
+- `Domain/`, `Repositories/`, `SqlModels/` are static concern folders
+- `UseCases/` groups all use-case folders together
+- The capability endpoint mapper stays at the capability root
+
 ```text
 <CapabilityName>/
   <CapabilityName>Endpoints.cs
@@ -222,45 +229,65 @@ A capability should use this structure by default:
     <CapabilityName>ReadRepository.cs
     <CapabilityName>WriteRepository.cs
 
-  <UseCaseA>/
-    <UseCaseA>Request.cs
-    <UseCaseA>Response.cs
-    <UseCaseA>Validator.cs
-    <UseCaseA>Handler.cs
+  UseCases/
+    <UseCaseA>/
+      <UseCaseA>Request.cs
+      <UseCaseA>Response.cs
+      <UseCaseA>Validator.cs
+      <UseCaseA>Handler.cs
 
-  <UseCaseB>/
-    <UseCaseB>Response.cs
-    <UseCaseB>Handler.cs
+    <UseCaseB>/
+      <UseCaseB>Response.cs
+      <UseCaseB>Handler.cs
 ```
 
 Example:
 
 ```text
-FiscalYears/
-  FiscalYearEndpoints.cs
+AccountingBooks/
+  AccountingBookEndpoints.cs
 
   Domain/
-    FiscalYear.cs
-    FiscalYearStatus.cs
+    AccountingBook.cs
+    AccountingBookStatus.cs
+    AccountingBookErrors.cs
+
+  SqlModels/
+    AccountingBookSqlModel.cs
 
   Repositories/
-    FiscalYearReadRepository.cs
-    FiscalYearWriteRepository.cs
+    AccountingBookReadRepository.cs
+    AccountingBookWriteRepository.cs
 
-  CreateFiscalYear/
-    CreateFiscalYearRequest.cs
-    CreateFiscalYearResponse.cs
-    CreateFiscalYearValidator.cs
-    CreateFiscalYearHandler.cs
+  UseCases/
+    CreateAccountingBook/
+      CreateAccountingBookRequest.cs
+      CreateAccountingBookResponse.cs
+      CreateAccountingBookValidator.cs
+      CreateAccountingBookHandler.cs
 
-  GetFiscalYear/
-    GetFiscalYearResponse.cs
-    GetFiscalYearHandler.cs
+    GetAccountingBook/
+      GetAccountingBookResponse.cs
+      GetAccountingBookHandler.cs
 
-  ListFiscalYears/
-    ListFiscalYearsRequest.cs
-    ListFiscalYearsResponse.cs
-    ListFiscalYearsHandler.cs
+    ListAccountingBooks/
+      ListAccountingBooksRequest.cs
+      ListAccountingBooksResponse.cs
+      ListAccountingBooksHandler.cs
+
+    ActivateAccountingBook/
+      ActivateAccountingBookRequest.cs
+      ActivateAccountingBookResponse.cs
+      ActivateAccountingBookHandler.cs
+
+    SuspendAccountingBook/
+      SuspendAccountingBookRequest.cs
+      SuspendAccountingBookResponse.cs
+      SuspendAccountingBookHandler.cs
+
+    ArchiveAccountingBook/
+      ArchiveAccountingBookResponse.cs
+      ArchiveAccountingBookHandler.cs
 ```
 
 ---

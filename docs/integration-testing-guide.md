@@ -8,20 +8,100 @@ The goal is to test real application and infrastructure behavior without dependi
 
 ---
 
-## Core idea
+## Testing layers
 
-Apex has two integration-test modes:
+Apex uses three testing layers, each with a clear responsibility:
 
-| Mode | Base class | Database shape | Use case |
-|---|---|---:|---|
-| Business integration tests | `ApexIntegrationTestBase` | One SQL Server container | Normal feature tests |
-| Infrastructure read/write routing tests | `SeparatedReadWriteIntegrationTestBase` | Two SQL Server containers | Proving read/write physical separation |
+| Layer | What it tests | Speed | Tooling |
+|---|---|---|---|
+| **HTTP smoke tests** | Endpoint binding, `[AsParameters]`, status codes, `ProblemDetails` error shape | Slow | `WebApplicationFactory`, real HTTP |
+| **Handler integration tests** | Handlers → transactor → real DB. Business logic, transactions, conflicts, complex scenarios | Medium | `ApexIntegrationTestBase`, real DI, real DB |
+| **Domain unit tests** | State machine rules, invariants, value objects | Fast | Pure C#, no DB, no DI |
 
-Use the single-database base by default.
+**Philosophy:** HTTP tests are thin (one test per endpoint, success + 404). All business logic testing lives in handler integration tests where you get real DB behavior without HTTP overhead. Domain tests are reserved for state machine rules that don't need a database.
 
 ---
 
-## 1. Default business integration tests
+## 1. HTTP smoke tests
+
+HTTP tests verify that an endpoint is reachable, parameters bind correctly, and the expected status codes are returned. They catch issues like `[AsParameters]` required-parameter mismatches, serialization problems, and middleware errors, which handler tests cannot see.
+
+### How many tests per endpoint
+
+One success test and one 404 test (if the endpoint takes an ID):
+
+| Endpoint | Test | Expected |
+|---|---|---|
+| `POST /api/v1/accounting/books` | `Create_Should_Return_201` | 201, body deserializes |
+| `GET /api/v1/accounting/books/{id}` | `Get_Existing_Should_Return_200` | 200 |
+| `GET /api/v1/accounting/books/{id}` | `Get_NotFound_Should_Return_404` | 404, correct error code |
+| `GET /api/v1/accounting/books` | `List_Should_Return_200` | 200, no params (tests binding defaults) |
+| `GET /api/v1/accounting/books` | `List_WithParams_Should_Return_200` | 200, query params present |
+| `POST /books/{id}/activate` | `Activate_Should_Return_200` | 200 |
+| `POST /books/{id}/activate` | `Activate_NotFound_Should_Return_404` | 404 |
+| `POST /books/{id}/suspend` | `Suspend_Should_Return_200` | 200 |
+| `POST /books/{id}/suspend` | `Suspend_NotFound_Should_Return_404` | 404 |
+| `POST /books/{id}/archive` | `Archive_Should_Return_200` | 200 |
+| `POST /books/{id}/archive` | `Archive_NotFound_Should_Return_404` | 404 |
+
+### Arranging state for smoke tests
+
+For tests that need existing data (e.g. `Activate_Should_Return_200`), use the HTTP `POST` endpoint itself as a one-liner helper to create the required entity. This keeps the test self-contained and verifies the create path works as well.
+
+### Example
+
+```csharp
+[Collection("AccountingBookHttpTestsCollection")]
+public sealed class AccountingBookHttpTests : IAsyncLifetime
+{
+    private readonly AccountingBookHttpTestsFixture _fixture;
+    private HttpClient _client = null!;
+
+    public AccountingBookHttpTests(AccountingBookHttpTestsFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
+    public Task InitializeAsync() =>
+        _client = _fixture.Factory.CreateClient();
+        return Task.CompletedTask;
+    }
+
+    [Fact]
+    public async Task Get_Existing_Should_Return_200()
+    {
+        await ArrangeCreateBookAsync("smoke-get");
+
+        await using var conn = _fixture.CreateAccountingConnection();
+        await conn.OpenAsync();
+        var id = await conn.ExecuteScalarAsync<long>("SELECT TOP 1 id FROM accounting_book ORDER BY id DESC");
+
+        var response = await _client.GetAsync($"/api/v1/accounting/books/{id}");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    /// Arrange via HTTP create endpoint - keeps test self-contained.
+}
+```
+
+The fixture uses `ApexWebApplicationFactory` + `ICollectionFixture` for container reuse.
+
+### What NOT to put in HTTP tests
+
+- Lifecycle/state transitions (activate → suspend → archive)
+- Conflict/rejection scenarios
+- Complex multi-entity workflows
+- Transaction verification
+
+These belong in handler integration tests.
+
+---
+
+## 2. Handler integration tests
+
+Handler tests are the workhorse of Apex integration testing. They exercise real handlers against a real database with real DI, real transactions, and real migrations.
+
+### Base class
 
 Use:
 
@@ -37,44 +117,121 @@ Both logical connection strings point to the same physical database:
 AccountingReadDb  == AccountingWriteDb
 ```
 
-This is the correct mode for business tests because reads and writes must observe the same state.
+### Arranging data - use real handlers
 
-Use it for:
+**Rule:** When setting up test data, invoke the actual handler rather than using raw SQL or HTTP. This ensures normalization, validation, and business rules are applied — and it exercises the handler as part of the arrange step, giving you a free happy-path test.
 
-- accounting feature tests
-- repository tests
-- handler tests
-- endpoint tests
-- transaction tests
-- tests that need real migrated schema
-- tests where read-after-write consistency matters
-
-Example:
+Good:
 
 ```csharp
-namespace Apex.IntegrationTests.Accounting;
-
-using Apex.IntegrationTests.Common;
-using Microsoft.Extensions.DependencyInjection;
-
-public sealed class FiscalYearTests : ApexIntegrationTestBase
+var createHandler = scope.Services.GetRequiredService<CreateAccountingBookHandler>();
+var book = await createHandler.HandleAsync(new CreateAccountingBookRequest
 {
-    public FiscalYearTests(ApexIntegrationTestFixture fixture)
+    Code = "test-001",
+    Title = "Test Book",
+    OwnerType = "PORTFOLIO",
+    OwnerId = "100"
+});
+```
+
+Bad (raw SQL bypasses normalization and validation):
+
+```csharp
+await connection.ExecuteAsync("""
+    INSERT INTO accounting_book(id, code, title, ...) VALUES (...)
+    """);
+```
+
+Bad (HTTP is slower and adds unnecessary transport layer):
+
+```csharp
+var response = await _client.PostAsJsonAsync("/api/v1/accounting/books", new { ... });
+```
+
+### Example
+
+```csharp
+[Collection(ApexIntegrationTestCollection.Name)]
+public sealed class AccountingBookHandlerTests : ApexIntegrationTestBase
+{
+    public AccountingBookHandlerTests(ApexIntegrationTestFixture fixture)
         : base(fixture)
     {
     }
 
     [Fact]
-    public async Task CreateFiscalYear_Should_Be_Readable()
+    public async Task Activate_DraftToActive_Should_Succeed()
     {
         await ResetAccountingDatabaseAsync();
-
         await using var scope = await CreateScopeAsync();
 
-        // Resolve application services from scope.Services.
-        // Execute behavior.
+        // Arrange - use real handlers
+        var createHandler = scope.Services.GetRequiredService<CreateAccountingBookHandler>();
+        var book = await createHandler.HandleAsync(new CreateAccountingBookRequest
+        {
+            Code = "act-1",
+            Title = "Test",
+            OwnerType = "PORTFOLIO",
+            OwnerId = "700"
+        });
+
+        // Act
+        var handler = scope.Services.GetRequiredService<ActivateAccountingBookHandler>();
+        var result = await handler.HandleAsync(book.Id);
+
+        // Assert response.
         // Assert persisted state.
+        Assert.Equal("ACTIVE", result.Status);
+        Assert.NotNull(result.ActivatedAt);
+
+        // Optional: SQL round-trip verification
+        await using var conn = CreateAccountingConnection();
+        await conn.OpenAsync();
+        var dbStatus = await conn.ExecuteScalarAsync<string>(
+            "SELECT status FROM accounting_book WHERE id = @Id",
+            new { Id = book.Id });
+        Assert.Equal("ACTIVE", dbStatus);
     }
+}
+```
+
+### Testing exceptions
+
+Handlers throw typed exceptions. Assert them directly:
+
+```csharp
+var ex = await Assert.ThrowsAsync<ConflictException>(() =>
+    createHandler.HandleAsync(new CreateAccountingBookRequest { ... }));
+
+Assert.Equal(AccountingBookErrors.AccountingBookCodeAlreadyExists, ex.ErrorCode);
+```
+
+### Complex scenarios
+
+Handler tests are where complex workflows live. Example: full lifecycle:
+
+```csharp
+[Fact]
+public async Task FullLifecycle_Should_Work()
+{
+    await ResetAccountingDatabaseAsync();
+
+    await using var scope = await CreateScopeAsync();
+
+    var createHandler = scope.Services.GetRequiredService<CreateAccountingBookHandler>();
+    var activateHandler = scope.Services.GetRequiredService<ActivateAccountingBookHandler>();
+    var suspendHandler = scope.Services.GetRequiredService<SuspendAccountingBookHandler>();
+    var archiveHandler = scope.Services.GetRequiredService<ArchiveAccountingBookHandler>();
+    var getHandler = scope.Services.GetRequiredService<GetAccountingBookHandler>();
+
+    // Create → Activate → Suspend → Archive → Verify
+    var book = await createHandler.HandleAsync(new CreateAccountingBookRequest { ... });
+    await activateHandler.HandleAsync(book.Id);
+    await suspendHandler.HandleAsync(book.Id);
+    await archiveHandler.HandleAsync(book.Id);
+
+    var final = await getHandler.HandleAsync(book.Id);
+    Assert.Equal("ARCHIVED", final.Status);
 }
 ```
 
@@ -142,19 +299,62 @@ public sealed class ReadWriteSeparationTests : SeparatedReadWriteIntegrationTest
 
 ## Rule of thumb
 
-Use this by default:
+| You need to test... | Use... |
+|---|---|
+| Endpoint binding, status codes, `ProblemDetails` shape | HTTP smoke tests |
+| Handler business logic, transactions, conflicts, workflows | Handler integration tests (`ApexIntegrationTestBase`) |
+| Read/write physical routing | `SeparatedReadWriteIntegrationTestBase` |
+| State machine rules, value objects, pure logic | Domain unit tests (`Apex.UnitTests`) |
 
-```csharp
-ApexIntegrationTestBase
+---
+
+## Migrations
+
+### Production migrations
+
+Live under `tools/Apex.DatabaseMigrator/Scripts/Accounting/`:
+
+```text
+tools/Apex.DatabaseMigrator/Scripts/Accounting/
+  000001_create_accounting_book.sql
 ```
 
-Use this only for infrastructure separation tests:
+Run automatically by fixtures via:
 
 ```csharp
-SeparatedReadWriteIntegrationTestBase
+DatabaseMigrationRunner.RunAccountingMigrations(connectionString);
 ```
 
-Business tests should normally use a single physical database because reads and writes should see the same data state.
+These are the same migrations the real application uses. Never put test-only tables here.
+
+### Test-only migrations
+
+Test support tables (e.g. `db_marker`, `write_transaction_test`) live in a separate folder:
+
+```text
+tools/Apex.DatabaseMigrator/Scripts.Test/Accounting/
+  000001_test_integration_support_tables.sql
+```
+
+Run via:
+
+```csharp
+DatabaseMigrationRunner.RunTestMigrations(connectionString);
+```
+
+Fixtures that need both call both functions:
+
+```csharp
+DatabaseMigrationRunner.RunAccountingMigrations(connectionString);
+DatabaseMigrationRunner.RunTestMigrations(connectionString);
+```
+
+### Rules
+
+- All schema must come from DbUp migrations — never create tables in test code.
+- Production app only runs migrations from `Scripts/Accounting/`.
+- Test migrations are strictly for tables needed by integration tests.
+- If a table is needed by production code, it belongs in `Scripts/`, not `Scripts.Test/`.
 
 ---
 
@@ -186,43 +386,39 @@ Good:
 
 ```text
 tools/Apex.DatabaseMigrator/Scripts/Accounting/000003_create_accounting_fiscal_years.sql
-```
-
 ---
-
-## Test data setup
-
-Tests may insert or update test data, but they should not create schema.
-
-Allowed:
-
-```csharp
-await connection.ExecuteAsync("""
-    INSERT INTO accounting_fiscal_years(
-        id,
-        title,
-        start_date,
-        end_date,
-        status,
-        created_at
-    )
-    VALUES (
-        @Id,
-        @Title,
-        @StartDate,
-        @EndDate,
-        @Status,
-        SYSUTCDATETIME()
-    )
-    """, payload);
 ```
 
-Not allowed:
+## Test data and arrange/setup
+
+**Arranging data via handlers — not HTTP or raw SQL.**
+
+When a handler integration test needs an existing entity (e.g. you need a book in `DRAFT` state to test activation), invoke the creation handler itself.
+
+Good:
 
 ```csharp
-await connection.ExecuteAsync("""
-    CREATE TABLE accounting_fiscal_years (...)
-    """);
+var createHandler = scope.Services.GetRequiredService<CreateAccountingBookHandler>();
+var book = await createHandler.HandleAsync(new CreateAccountingBookRequest
+{
+    Code = "test-001",
+    Title = "Test Book",
+    OwnerType = "PORTFOLIO",
+    OwnerId = "100"
+});
+```
+
+This ensures normalization, validation, and business rules run as part of the arrange step.
+
+Tests may also use raw SQL for asserting persisted state:
+
+```csharp
+await using var conn = CreateAccountingConnection();
+await conn.OpenAsync();
+var count = await conn.ExecuteScalarAsync<int>(
+    "SELECT COUNT(*) FROM accounting_book WHERE id = @Id",
+    new { Id = book.Id });
+Assert.Equal(1, count);
 ```
 
 ---
@@ -480,11 +676,13 @@ tests/Apex.IntegrationTests/
     ApexIntegrationTestBase.cs
     ApexIntegrationTestCollection.cs
     ApexIntegrationTestFixture.cs
+    ApexWebApplicationFactory.cs
 
   Accounting/
-    FiscalYearTests.cs
-    JournalEntryTests.cs
-    ChartOfAccountsTests.cs
+    AccountingSingleDatabaseTests.cs              # infrastructure single-DB tests
+    AccountingBooks/
+      AccountingBookHttpTests.cs                  # HTTP smoke (binding, status codes)
+      AccountingBookHandlerTests.cs               # handler integration (lifecycle, conflicts, workflows)
 
   Infrastructure/
     Data/
@@ -517,16 +715,29 @@ DatabaseWorks()
 
 ---
 
-## Checklist for a new business integration test
+## Checklist for a new HTTP smoke test
 
-1. Put the test under `tests/Apex.IntegrationTests/Accounting`.
+1. Put the test under `tests/Apex.IntegrationTests/` (e.g. `Accounting/AccountingBooks/`).
+2. Use `WebApplicationFactory` + `ICollectionFixture` for container reuse.
+3. One test per endpoint (success), plus 404 test for ID-based endpoints.
+4. Assert status code and deserializable body. For 404, assert `ProblemDetails.ErrorCode`.
+5. Arrange data via HTTP create endpoint (self-contained).
+6. No lifecycle/state transitions — those belong in handler tests.
+
+---
+
+## Checklist for a new handler integration test
+
+1. Put the test under `tests/Apex.IntegrationTests/Accounting/` (matching module structure).
 2. Inherit from `ApexIntegrationTestBase`.
 3. Call `await ResetAccountingDatabaseAsync();` when the test mutates data.
 4. Resolve scoped services from `await CreateScopeAsync();`.
-5. Use application services for behavior.
-6. Use direct SQL only for arrange/assert.
-7. Make sure all required schema exists through DbUp migrations.
-8. Keep the test deterministic.
+5. Arrange data by invoking the real creation handler — not SQL or HTTP.
+6. Act: call the handler under test.
+7. Assert: response object, then optional SQL round-trip verification.
+8. For exceptions: assert typed exception and `ErrorCode`.
+9. Make sure all required schema exists through DbUp migrations.
+10. Keep the test deterministic.
 
 ---
 
@@ -543,11 +754,12 @@ DatabaseWorks()
 
 ## Final rules
 
-1. Use `ApexIntegrationTestBase` for normal business tests.
-2. Use `SeparatedReadWriteIntegrationTestBase` only for read/write infrastructure tests.
-3. Do not create schema manually in tests.
-4. Put schema changes in DbUp migrations.
-5. Resolve scoped services from `CreateScopeAsync()`.
-6. Reset mutated data at the beginning of each test.
-7. Prefer direct SQL only for arrange/assert, not for business behavior.
-8. Keep tests deterministic and isolated.
+1. **HTTP tests are thin:** one test per endpoint, success + 404. Nothing else.
+2. **Handler tests are the workhorse:** all business logic, lifecycle, conflicts, and workflows live here.
+3. **Domain tests for pure logic:** state machine rules, value objects, no DB needed.
+4. **Arrange with real handlers:** never use raw SQL or HTTP to set up data in handler tests.
+5. **Production migrations stay pure:** test-only tables go in `Scripts.Test/`, production in `Scripts/`.
+6. **Resolve scoped services from `CreateScopeAsync()`:** never from the root provider.
+7. **Reset mutated data at the beginning of each test:** use `ResetAccountingDatabaseAsync()`.
+8. **Use direct SQL only for asserting persisted state:** not for business behavior.
+9. **Keep tests deterministic and isolated.**

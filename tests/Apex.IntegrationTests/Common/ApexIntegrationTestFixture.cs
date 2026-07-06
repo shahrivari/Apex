@@ -2,6 +2,7 @@ namespace Apex.IntegrationTests.Common;
 
 using Apex.DatabaseMigrator.Migrations;
 using Apex.Infrastructure;
+using Apex.Modules.Accounting;
 using Dapper;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
@@ -37,6 +38,7 @@ public sealed class ApexIntegrationTestFixture : IAsyncLifetime
 
         services.AddSingleton(Configuration);
         services.AddInfrastructure(Configuration);
+        services.AddAccountingModule(Configuration);
 
         return services.BuildServiceProvider(validateScopes: true);
     }
@@ -60,6 +62,9 @@ public sealed class ApexIntegrationTestFixture : IAsyncLifetime
                 DELETE FROM db_marker;
                 INSERT INTO db_marker(name) VALUES ('ACCOUNTING_DATABASE');
             END
+
+            IF OBJECT_ID('accounting_book', 'U') IS NOT NULL
+                DELETE FROM accounting_book;
             """);
     }
 
@@ -91,6 +96,15 @@ public sealed class ApexIntegrationTestFixture : IAsyncLifetime
         {
             throw new InvalidOperationException(
                 "Database migration failed.",
+                result.Error);
+        }
+
+        result = DatabaseMigrationRunner.RunTestMigrations(connectionString);
+
+        if (!result.Successful)
+        {
+            throw new InvalidOperationException(
+                "Test migration failed.",
                 result.Error);
         }
     }

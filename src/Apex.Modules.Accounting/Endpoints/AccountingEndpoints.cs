@@ -1,3 +1,5 @@
+using Apex.Modules.Accounting.AccountingBooks;
+
 namespace Apex.Modules.Accounting.Endpoints;
 
 using Microsoft.AspNetCore.Builder;
@@ -8,7 +10,7 @@ public static class AccountingEndpoints
 {
     public static IEndpointRouteBuilder MapAccountingEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/apex/v1/api/accounting")
+        var group = app.MapGroup("/v1/api/accounting")
             .WithTags("Accounting");
 
         group.MapGet("/info", () => Results.Ok(new
@@ -17,6 +19,8 @@ public static class AccountingEndpoints
             Status = "Ready"
         }))
         .AllowAnonymous();
+
+        app.MapAccountingBookEndpoints();
 
         return app;
     }
