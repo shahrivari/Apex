@@ -1,4 +1,4 @@
-using DbUp;
+using Apex.DatabaseMigrator.Migrations;
 using Microsoft.Extensions.Configuration;
 
 var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
@@ -19,17 +19,10 @@ if (string.IsNullOrWhiteSpace(connectionString))
     return 1;
 }
 
-Console.WriteLine("Running Apex database migrations...");
+Console.WriteLine("Running Apex Accounting migrations...");
 Console.WriteLine($"Environment: {environment}");
 
-var upgrader = DeployChanges.To
-    .SqlDatabase(connectionString)
-    .WithScriptsEmbeddedInAssembly(typeof(Program).Assembly)
-    .LogToConsole()
-    .WithTransactionPerScript()
-    .Build();
-
-var result = upgrader.PerformUpgrade();
+var result = DatabaseMigrationRunner.RunAccountingMigrations(connectionString);
 
 if (!result.Successful)
 {
@@ -40,7 +33,7 @@ if (!result.Successful)
 }
 
 Console.ForegroundColor = ConsoleColor.Green;
-Console.WriteLine("Database migrations completed successfully.");
+Console.WriteLine("Accounting migrations completed successfully.");
 Console.ResetColor();
 
 return 0;
