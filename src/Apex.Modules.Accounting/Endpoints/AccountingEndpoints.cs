@@ -10,7 +10,7 @@ public static class AccountingEndpoints
 {
     public static IEndpointRouteBuilder MapAccountingEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1/api/accounting")
+        var group = app.MapGroup("/api/v1/accounting")
             .WithTags("Accounting");
 
         group.MapGet("/info", () => Results.Ok(new

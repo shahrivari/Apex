@@ -17,6 +17,7 @@ public static class AccountingBookEndpoints
     {
         var group = app.MapGroup("/api/v1/accounting/books")
             .WithTags("Accounting - Books");
+            //.RequireAuthorization(); disable auth for now 
 
         group.MapPost("", async (
                 [FromBody] CreateAccountingBookRequest request,

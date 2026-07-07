@@ -31,6 +31,7 @@ public static class DependencyInjection
 
         // Validators
         services.AddTransient<IValidator<CreateAccountingBookRequest>, CreateAccountingBookValidator>();
+        services.AddTransient<IValidator<ListAccountingBooksRequest>, ListAccountingBooksValidator>();
 
         return services;
     }

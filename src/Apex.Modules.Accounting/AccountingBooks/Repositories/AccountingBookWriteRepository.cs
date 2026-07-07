@@ -1,5 +1,4 @@
 using Apex.Application.Abstractions.Data;
-using Apex.Application.Abstractions.Exceptions;
 using Dapper;
 using Apex.Modules.Accounting.AccountingBooks.Domain;
 using Apex.Modules.Accounting.AccountingBooks.SqlModels;
@@ -92,7 +91,7 @@ public sealed class AccountingBookWriteRepository
             new CommandDefinition(
                 """
                 SELECT COUNT(1)
-                FROM accounting_book
+                FROM accounting_book WITH (UPDLOCK, HOLDLOCK)
                 WHERE code = @Code
                 """,
                 new { Code = code },
@@ -111,7 +110,7 @@ public sealed class AccountingBookWriteRepository
             new CommandDefinition(
                 """
                 SELECT COUNT(1)
-                FROM accounting_book
+                FROM accounting_book WITH (UPDLOCK, HOLDLOCK)
                 WHERE owner_type = @OwnerType AND owner_id = @OwnerId
                 """,
                 new { OwnerType = ownerType, OwnerId = ownerId },

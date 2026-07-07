@@ -1,21 +1,28 @@
 using Apex.Modules.Accounting.AccountingBooks.Repositories;
 using Apex.Modules.Accounting.AccountingBooks.SqlModels;
+using FluentValidation;
 
 namespace Apex.Modules.Accounting.AccountingBooks.UseCases.ListAccountingBooks;
 
 public sealed class ListAccountingBooksHandler
 {
     private readonly AccountingBookReadRepository _readRepository;
+    private readonly IValidator<ListAccountingBooksRequest> _validator;
 
-    public ListAccountingBooksHandler(AccountingBookReadRepository readRepository)
+    public ListAccountingBooksHandler(
+        AccountingBookReadRepository readRepository,
+        IValidator<ListAccountingBooksRequest> validator)
     {
         _readRepository = readRepository;
+        _validator = validator;
     }
 
     public async Task<ListAccountingBooksResponse> HandleAsync(
         ListAccountingBooksRequest request,
         CancellationToken cancellationToken = default)
     {
+        await _validator.ValidateAndThrowAsync(request, cancellationToken);
+
         var (items, totalCount) = await _readRepository.ListAsync(
             request.Status,
             request.OwnerType,

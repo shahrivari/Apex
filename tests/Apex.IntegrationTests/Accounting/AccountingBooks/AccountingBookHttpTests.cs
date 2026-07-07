@@ -89,6 +89,64 @@ public sealed class AccountingBookHttpTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task List_Page_Zero_Should_Return_400()
+    {
+        var response = await _client.GetAsync($"{BaseUrl}?page=0");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetailsDto>(JsonOptions);
+        Assert.NotNull(problem);
+        Assert.Equal("validation_failed", problem!.ErrorCode);
+    }
+
+    [Fact]
+    public async Task List_NegativePage_Should_Return_400()
+    {
+        var response = await _client.GetAsync($"{BaseUrl}?page=-1");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetailsDto>(JsonOptions);
+        Assert.NotNull(problem);
+        Assert.Equal("validation_failed", problem!.ErrorCode);
+    }
+
+    [Fact]
+    public async Task List_PageSize_Zero_Should_Return_400()
+    {
+        var response = await _client.GetAsync($"{BaseUrl}?pageSize=0");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetailsDto>(JsonOptions);
+        Assert.NotNull(problem);
+        Assert.Equal("validation_failed", problem!.ErrorCode);
+    }
+
+    [Fact]
+    public async Task List_PageSize_Over100_Should_Return_400()
+    {
+        var response = await _client.GetAsync($"{BaseUrl}?pageSize=101");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetailsDto>(JsonOptions);
+        Assert.NotNull(problem);
+        Assert.Equal("validation_failed", problem!.ErrorCode);
+    }
+
+    [Fact]
+    public async Task List_ValidPagination_Should_Return_200()
+    {
+        await ArrangeCreateBookAsync("smoke-valid-page");
+
+        var response = await _client.GetAsync($"{BaseUrl}?page=1&pageSize=50");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Create_Should_Return_201()
     {
         await _fixture.ResetAccountingDatabaseAsync();
