@@ -5,20 +5,13 @@ using Apex.Modules.Accounting.AccountingBooks.SqlModels;
 
 namespace Apex.Modules.Accounting.AccountingBooks.UseCases.GetAccountingBook;
 
-public sealed class GetAccountingBookHandler
+public sealed class GetAccountingBookHandler(AccountingBookReadRepository readRepository)
 {
-    private readonly AccountingBookReadRepository _readRepository;
-
-    public GetAccountingBookHandler(AccountingBookReadRepository readRepository)
-    {
-        _readRepository = readRepository;
-    }
-
     public async Task<GetAccountingBookResponse> HandleAsync(
         long id,
         CancellationToken cancellationToken = default)
     {
-        var model = await _readRepository.GetByIdAsync(id, cancellationToken);
+        var model = await readRepository.GetByIdAsync(id, cancellationToken);
 
         if (model == null)
         {

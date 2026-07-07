@@ -223,6 +223,47 @@ All use cases go in the `UseCases/` subfolder inside the capability.
 
 Use `*Handler.cs` naming. Not `*UseCase.cs`. Consistent with the module architecture.
 
+### Primary constructor syntax
+
+Use **C# 12 primary constructors** for all handlers. Do not declare private readonly fields.
+
+```csharp
+// ✅ Preferred
+public sealed class ActivateAccountingBookHandler(
+    IWriteTransactionRunner transactionRunner,
+    AccountingBookWriteRepository writeRepository,
+    IClock clock)
+{
+    public async Task<ActivateAccountingBookResponse> HandleAsync(...)
+    {
+        await transactionRunner.ExecuteAsync(...);
+    }
+}
+
+// ❌ Avoid
+public sealed class ActivateAccountingBookHandler
+{
+    private readonly IWriteTransactionRunner _transactionRunner;
+    private readonly AccountingBookWriteRepository _writeRepository;
+    private readonly IClock _clock;
+
+    public ActivateAccountingBookHandler(...)
+    {
+        _transactionRunner = transactionRunner;
+        _writeRepository = writeRepository;
+        _clock = clock;
+    }
+}
+```
+
+**Rules:**
+
+| Rule | Why |
+|------|-----|
+| Dependencies in primary constructor | Eliminates boilerplate, ~60% less code |
+| No underscore prefix in usage | Parameters are fields; use directly |
+| No explicit constructor body | Primary constructor is the constructor |
+
 ### Command handler template
 
 ```csharp

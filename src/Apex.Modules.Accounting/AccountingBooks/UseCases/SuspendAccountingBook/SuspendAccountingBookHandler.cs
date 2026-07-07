@@ -6,31 +6,20 @@ using Apex.Modules.Accounting.AccountingBooks.Repositories;
 
 namespace Apex.Modules.Accounting.AccountingBooks.UseCases.SuspendAccountingBook;
 
-public sealed class SuspendAccountingBookHandler
+public sealed class SuspendAccountingBookHandler(
+    IWriteTransactionRunner transactionRunner,
+    AccountingBookWriteRepository writeRepository,
+    IClock clock)
 {
-    private readonly IWriteTransactionRunner _transactionRunner;
-    private readonly AccountingBookWriteRepository _writeRepository;
-    private readonly IClock _clock;
-
-    public SuspendAccountingBookHandler(
-        IWriteTransactionRunner transactionRunner,
-        AccountingBookWriteRepository writeRepository,
-        IClock clock)
-    {
-        _transactionRunner = transactionRunner;
-        _writeRepository = writeRepository;
-        _clock = clock;
-    }
-
     public async Task<SuspendAccountingBookResponse> HandleAsync(
         long id,
         CancellationToken cancellationToken = default)
     {
         SuspendAccountingBookResponse? response = null;
 
-        await _transactionRunner.ExecuteAsync(AccountingModule.Name, async ct =>
+        await transactionRunner.ExecuteAsync(AccountingModule.Name, async ct =>
         {
-            var book = await _writeRepository.GetByIdForUpdateAsync(id, ct);
+            var book = await writeRepository.GetByIdForUpdateAsync(id, ct);
 
             if (book == null)
             {
@@ -39,9 +28,9 @@ public sealed class SuspendAccountingBookHandler
                     AccountingBookErrors.AccountingBookNotFound);
             }
 
-            book.Suspend(_clock.UtcNow);
+            book.Suspend(clock.UtcNow);
 
-            await _writeRepository.UpdateStatusAsync(book, ct);
+            await writeRepository.UpdateStatusAsync(book, ct);
 
             response = new SuspendAccountingBookResponse(
                 book.Id,

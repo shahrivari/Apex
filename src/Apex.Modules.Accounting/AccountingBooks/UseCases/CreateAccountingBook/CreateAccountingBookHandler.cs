@@ -8,33 +8,18 @@ using FluentValidation;
 
 namespace Apex.Modules.Accounting.AccountingBooks.UseCases.CreateAccountingBook;
 
-public sealed class CreateAccountingBookHandler
+public sealed class CreateAccountingBookHandler(
+    IWriteTransactionRunner transactionRunner,
+    AccountingBookWriteRepository writeRepository,
+    IIdGenerator idGenerator,
+    IClock clock,
+    IValidator<CreateAccountingBookRequest> validator)
 {
-    private readonly IWriteTransactionRunner _transactionRunner;
-    private readonly AccountingBookWriteRepository _writeRepository;
-    private readonly IIdGenerator _idGenerator;
-    private readonly IClock _clock;
-    private readonly IValidator<CreateAccountingBookRequest> _validator;
-
-    public CreateAccountingBookHandler(
-        IWriteTransactionRunner transactionRunner,
-        AccountingBookWriteRepository writeRepository,
-        IIdGenerator idGenerator,
-        IClock clock,
-        IValidator<CreateAccountingBookRequest> validator)
-    {
-        _transactionRunner = transactionRunner;
-        _writeRepository = writeRepository;
-        _idGenerator = idGenerator;
-        _clock = clock;
-        _validator = validator;
-    }
-
     public async Task<CreateAccountingBookResponse> HandleAsync(
         CreateAccountingBookRequest request,
         CancellationToken cancellationToken = default)
     {
-        await _validator.ValidateAndThrowAsync(request, cancellationToken);
+        await validator.ValidateAndThrowAsync(request, cancellationToken);
 
         var normalizedCode = request.Code.Trim().ToUpperInvariant();
         var normalizedOwnerType = request.OwnerType.Trim().ToUpperInvariant();
@@ -42,9 +27,9 @@ public sealed class CreateAccountingBookHandler
 
         CreateAccountingBookResponse? response = null;
 
-        await _transactionRunner.ExecuteAsync(AccountingModule.Name, async ct =>
+        await transactionRunner.ExecuteAsync(AccountingModule.Name, async ct =>
         {
-            var codeExists = await _writeRepository.ExistsByCodeForUpdateAsync(normalizedCode, ct);
+            var codeExists = await writeRepository.ExistsByCodeForUpdateAsync(normalizedCode, ct);
             if (codeExists)
             {
                 throw new ConflictException(
@@ -52,7 +37,7 @@ public sealed class CreateAccountingBookHandler
                     AccountingBookErrors.AccountingBookCodeAlreadyExists);
             }
 
-            var ownerExists = await _writeRepository.ExistsByOwnerForUpdateAsync(normalizedOwnerType, normalizedOwnerId, ct);
+            var ownerExists = await writeRepository.ExistsByOwnerForUpdateAsync(normalizedOwnerType, normalizedOwnerId, ct);
             if (ownerExists)
             {
                 throw new ConflictException(
@@ -61,14 +46,14 @@ public sealed class CreateAccountingBookHandler
             }
 
             var book = AccountingBook.Create(
-                _idGenerator.NewId(),
+                idGenerator.NewId(),
                 normalizedCode,
                 request.Title,
                 normalizedOwnerType,
                 normalizedOwnerId,
-                _clock.UtcNow);
+                clock.UtcNow);
 
-            await _writeRepository.InsertAsync(book, ct);
+            await writeRepository.InsertAsync(book, ct);
 
             response = new CreateAccountingBookResponse(
                 book.Id,
