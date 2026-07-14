@@ -8,6 +8,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Testcontainers.MsSql;
+using Apex.Application.Abstractions.Data;
 
 public sealed class ApexIntegrationTestFixture : IAsyncLifetime
 {
@@ -15,12 +16,15 @@ public sealed class ApexIntegrationTestFixture : IAsyncLifetime
         new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-latest").Build();
     
     public string AccountingConnectionString => _accountingDb.GetConnectionString();
+    public string ShardConnectionString { get; private set; } = null!;
 
     public IConfiguration Configuration { get; private set; } = null!;
 
     public async Task InitializeAsync()
     {
         await _accountingDb.StartAsync();
+
+        ShardConnectionString = await CreateShardDatabaseAsync();
 
         Configuration = BuildConfiguration();
 
@@ -72,15 +76,10 @@ public sealed class ApexIntegrationTestFixture : IAsyncLifetime
     {
         var values = new Dictionary<string, string?>
         {
-            ["Modules:Accounting:Database:ReadConnectionStringName"] = "AccountingReadDb",
-            ["Modules:Accounting:Database:WriteConnectionStringName"] = "AccountingWriteDb",
-            ["Modules:Accounting:Database:Sharding:Enabled"] = "true",
-            ["Modules:Accounting:Database:Sharding:Strategy"] = "FiscalYear",
-            ["Modules:Accounting:Database:Sharding:DefaultShard"] = "Current",
-
-            // Important: normal business tests use one physical DB.
-            ["ConnectionStrings:AccountingReadDb"] = AccountingConnectionString,
-            ["ConnectionStrings:AccountingWriteDb"] = AccountingConnectionString
+            ["Sharding:GeneralConnectionStringName"] = "GeneralDb",
+            ["Sharding:RequiredSchemaVersion"] = "1",
+            ["ConnectionStrings:GeneralDb"] = AccountingConnectionString
+            , ["ConnectionStrings:ShardOne"] = ShardConnectionString
         };
 
         return new ConfigurationBuilder()
@@ -90,7 +89,7 @@ public sealed class ApexIntegrationTestFixture : IAsyncLifetime
 
     private static void RunMigrations(string connectionString)
     {
-        var result = DatabaseMigrationRunner.RunAccountingMigrations(connectionString);
+        var result = DatabaseMigrationRunner.RunGeneralMigrations(connectionString);
 
         if (!result.Successful)
         {
@@ -107,5 +106,29 @@ public sealed class ApexIntegrationTestFixture : IAsyncLifetime
                 "Test migration failed.",
                 result.Error);
         }
+    }
+
+    private async Task<string> CreateShardDatabaseAsync()
+    {
+        var builder = new SqlConnectionStringBuilder(AccountingConnectionString);
+        var databaseName = "ApexShardOne";
+
+        await using (var connection = new SqlConnection(AccountingConnectionString))
+        {
+            await connection.OpenAsync();
+            await connection.ExecuteAsync($"CREATE DATABASE [{databaseName}]");
+        }
+
+        builder.InitialCatalog = databaseName;
+        var connectionString = builder.ConnectionString;
+        var result = DatabaseMigrationRunner.RunShardMigrations(connectionString);
+        if (!result.Successful)
+            throw new InvalidOperationException("Shard migration failed.", result.Error);
+
+        await using var shard = new SqlConnection(connectionString);
+        await shard.OpenAsync();
+        await shard.ExecuteAsync("CREATE TABLE shard_marker (name VARCHAR(50) NOT NULL)");
+        await shard.ExecuteAsync("INSERT INTO shard_marker(name) VALUES ('SHARD_ONE')");
+        return connectionString;
     }
 }

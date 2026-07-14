@@ -1,11 +1,11 @@
 using Apex.Modules.Accounting.AccountingBooks.Repositories;
-using Apex.Modules.Accounting.AccountingBooks.SqlModels;
+using Apex.Modules.Accounting.AccountingBooks.Repositories.Rows;
 using FluentValidation;
 
 namespace Apex.Modules.Accounting.AccountingBooks.UseCases.ListAccountingBooks;
 
 public sealed class ListAccountingBooksHandler(
-    AccountingBookReadRepository readRepository,
+    IAccountingBookReadRepository readRepository,
     IValidator<ListAccountingBooksRequest> validator)
 {
     public async Task<ListAccountingBooksResponse> HandleAsync(
@@ -30,7 +30,7 @@ public sealed class ListAccountingBooksHandler(
             request.PageSize ?? 50);
     }
 
-    static IReadOnlyList<AccountingBookItem> MapItems(IReadOnlyList<AccountingBookSqlModel> items)
+    static IReadOnlyList<AccountingBookItem> MapItems(IReadOnlyList<AccountingBookRow> items)
     {
         return items.Select(x => new AccountingBookItem(
             x.Id,

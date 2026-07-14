@@ -1,11 +1,11 @@
 using Apex.Application.Abstractions.Exceptions;
 using Apex.Modules.Accounting.AccountingBooks.Domain;
 using Apex.Modules.Accounting.AccountingBooks.Repositories;
-using Apex.Modules.Accounting.AccountingBooks.SqlModels;
+using Apex.Modules.Accounting.AccountingBooks.Repositories.Rows;
 
 namespace Apex.Modules.Accounting.AccountingBooks.UseCases.GetAccountingBook;
 
-public sealed class GetAccountingBookHandler(AccountingBookReadRepository readRepository)
+public sealed class GetAccountingBookHandler(IAccountingBookReadRepository readRepository)
 {
     public async Task<GetAccountingBookResponse> HandleAsync(
         long id,
@@ -23,7 +23,7 @@ public sealed class GetAccountingBookHandler(AccountingBookReadRepository readRe
         return MapResponse(model);
     }
 
-    static GetAccountingBookResponse MapResponse(AccountingBookSqlModel model)
+    static GetAccountingBookResponse MapResponse(AccountingBookRow model)
     {
         return new GetAccountingBookResponse(
             model.Id,

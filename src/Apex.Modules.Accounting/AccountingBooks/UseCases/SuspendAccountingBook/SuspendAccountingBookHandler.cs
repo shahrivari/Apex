@@ -7,8 +7,8 @@ using Apex.Modules.Accounting.AccountingBooks.Repositories;
 namespace Apex.Modules.Accounting.AccountingBooks.UseCases.SuspendAccountingBook;
 
 public sealed class SuspendAccountingBookHandler(
-    IWriteTransactionRunner transactionRunner,
-    AccountingBookWriteRepository writeRepository,
+    IGeneralTransactionRunner transactionRunner,
+    IAccountingBookWriteRepository writeRepository,
     IClock clock)
 {
     public async Task<SuspendAccountingBookResponse> HandleAsync(
@@ -17,7 +17,7 @@ public sealed class SuspendAccountingBookHandler(
     {
         SuspendAccountingBookResponse? response = null;
 
-        await transactionRunner.ExecuteAsync(AccountingModule.Name, async ct =>
+        await transactionRunner.ExecuteAsync(async ct =>
         {
             var book = await writeRepository.GetByIdForUpdateAsync(id, ct);
 

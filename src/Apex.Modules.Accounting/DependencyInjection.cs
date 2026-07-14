@@ -18,8 +18,8 @@ public static class DependencyInjection
         IConfiguration configuration)
     {
         // Repositories
-        services.AddScoped<AccountingBookReadRepository>();
-        services.AddScoped<AccountingBookWriteRepository>();
+        services.AddScoped<IAccountingBookReadRepository, AccountingBookReadRepository>();
+        services.AddScoped<IAccountingBookWriteRepository, AccountingBookWriteRepository>();
 
         // Handlers
         services.AddTransient<CreateAccountingBookHandler>();

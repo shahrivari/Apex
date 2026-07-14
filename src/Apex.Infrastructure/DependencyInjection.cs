@@ -15,13 +15,15 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        services.AddSingleton<IModuleDatabaseResolver, ModuleDatabaseResolver>();
+        services.AddSingleton<SqlShardDirectory>();
+        services.AddSingleton<IShardDirectory>(provider =>
+            provider.GetRequiredService<SqlShardDirectory>());
         services.AddSingleton<IShardResolver, DefaultShardResolver>();
-
-        services.AddSingleton<IReadDbConnectionFactory, SqlReadDbConnectionFactory>();
-        services.AddScoped<IWriteDbConnectionFactory, SqlWriteDbConnectionFactory>();
-        services.AddScoped<IWriteDbSession, SqlWriteDbSession>();
-        services.AddScoped<IWriteTransactionRunner, SqlWriteTransactionRunner>();
+        services.AddSingleton<SqlShardConnectionFactory>();
+        services.AddSingleton<IShardConnectionFactory>(provider =>
+            provider.GetRequiredService<SqlShardConnectionFactory>());
+        services.AddScoped<IGeneralConnectionFactory, SqlGeneralConnectionFactory>();
+        services.AddScoped<IGeneralTransactionRunner, SqlGeneralTransactionRunner>();
 
         services.AddSingleton<IIdGenerator, TsidIdGenerator>();
         services.AddSingleton<IClock, SystemClock>();

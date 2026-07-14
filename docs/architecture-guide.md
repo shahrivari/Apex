@@ -57,7 +57,7 @@ Services
 Repositories
 Infrastructure
 Common
-Controllers
+Generallers
 ```
 
 A typical module has this shape:
@@ -101,7 +101,7 @@ A capability normally contains:
 <CapabilityName>/
   <CapabilityName>Endpoints.cs
   Domain/
-  SqlModels/
+  Repositories/Rows/
   Repositories/
   UseCases/
 ```
@@ -117,12 +117,10 @@ AccountingBooks/
     AccountingBookStatus.cs
     AccountingBookErrors.cs
 
-  SqlModels/
-    AccountingBookSqlModel.cs
-
   Repositories/
     AccountingBookReadRepository.cs
     AccountingBookWriteRepository.cs
+    Rows/AccountingBookRow.cs
 
   UseCases/
     CreateAccountingBook/
@@ -140,7 +138,7 @@ AccountingBooks/
       ActivateAccountingBookHandler.cs
 ```
 
-This layout keeps related code close together. A developer changing Accounting Books should not need to jump across global `Controllers`, `Services`, `Repositories`, and `Models` folders.
+This layout keeps related code close together. A developer changing Accounting Books should not need to jump across global `Generallers`, `Services`, `Repositories`, and `Models` folders.
 
 ## 5. Dependency Direction
 
@@ -152,15 +150,15 @@ API startup
     -> Capability endpoint mapper
       -> Use case handler
         -> Domain + repositories
-          -> SQL models + Dapper
+          -> row entities + Dapper
 ```
 
 Rules:
 
 - Endpoints may call handlers.
 - Handlers may call repositories and domain objects.
-- Repositories may use Dapper and SQL models.
-- Domain may contain business behavior and may narrowly depend on module-local SQL models for rehydration.
+- Repositories may use Dapper and typed row entities.
+- Domain never depends on persistence row models.
 - Domain must not depend on ASP.NET Core, Dapper, repositories, DI, or infrastructure services.
 - Handlers must not contain SQL.
 - Repositories must not know HTTP status codes.
@@ -272,36 +270,28 @@ Prevent mutation after archive
 
 The domain should not save itself. Persistence belongs to repositories.
 
-The domain may depend on module-local SQL models when useful for rehydration, for example:
+The domain must not depend on repository row entities. Command repositories map
+rows to domain entities using scalar rehydration methods.
 
-```csharp
-AccountingBook.CreateFromSql(AccountingBookSqlModel model)
-```
+## 9. Repository Rows and Read DTOs
 
-Keep that dependency narrow. The domain still must not know Dapper, SQL text, repositories, transactions, or HTTP.
-
-## 9. SQL Models
-
-SQL models are flat objects that represent database rows or read projections.
-
-They are not domain objects.
-
-They are useful because Dapper maps cleanly into simple POCOs, and query handlers can map them directly into response DTOs.
+The normal row entity represents an entity's database shape and is the typed
+Dapper result and query-repository output. It is not a domain object.
 
 Rules:
 
-- Read repositories return SQL/read models.
-- SQL models may have simple mapping helpers.
-- SQL models should not contain business behavior.
-- Do not create generic marker abstractions like `ISqlModel`.
+- Query repositories may return the normal row entity.
+- Command repositories map that row to the domain entity.
+- Handlers map rows to endpoint responses.
+- Rows contain no business behavior.
+- Add another row only for materially different projections.
 
 Example:
 
 ```text
-AccountingBookSqlModel
-  -> maps database row
-  -> can map to domain or response
-  -> does not enforce business transitions
+AccountingBookRow (typed Dapper result)
+  -> endpoint response for queries
+  -> AccountingBook domain entity for commands
 ```
 
 ## 10. Persistence Architecture
@@ -313,35 +303,27 @@ Apex uses:
 - DbUp migrations;
 - application-generated TSID `BIGINT` IDs;
 - UTC `DateTime` from `IClock.UtcNow`;
-- explicit read/write separation;
+- one connection per physical database;
 - explicit transaction boundaries;
-- optional sharding through `IShardResolver`.
+- general-directory database sharding through `IShardResolver`.
 
 The high-level flow is:
 
 ```text
-Queries
-  -> IReadDbConnectionFactory
-  -> read database
-  -> read repository
-  -> SQL/read model
-
-Commands
-  -> IWriteTransactionRunner
-  -> IWriteDbSession
-  -> write repository
-  -> write database
+General query -> IGeneralConnectionFactory -> general database
+General command -> IGeneralTransactionRunner -> IGeneralConnectionFactory -> general database
+Partition operation -> explicit shard key -> shard session/transaction runner -> one shard
 ```
 
-Read and write connection strings may point to the same physical database in local development and most business integration tests. They may point to different databases in production or read/write infrastructure tests.
-
-Repositories resolve databases by module name. They must not hardcode connection string names.
+There is one connection per physical database. Repositories never select connection
+names; infrastructure resolves them from the general directory and configuration.
 
 ## 11. Read Repositories
 
 Read repositories are for queries.
 
-They use `IReadDbConnectionFactory` and return SQL/read models.
+General queries use `IGeneralConnectionFactory`; partition queries use
+`IShardConnectionFactory`. Both return typed SQL/read models.
 
 Common methods:
 
@@ -356,7 +338,7 @@ GetCurrentAsync
 Read repositories should not:
 
 - mutate data;
-- use `IWriteDbSession`;
+- mutate data;
 - start transactions;
 - decide HTTP behavior.
 
@@ -366,7 +348,8 @@ A missing row usually returns `null`. The query handler decides whether that bec
 
 Write repositories are for commands.
 
-They use `IWriteDbSession`, which provides the active connection and transaction.
+They use `IGeneralConnectionFactory` or an `IShardConnection` supplied by the matching
+transaction runner.
 
 Common methods:
 
@@ -379,7 +362,8 @@ ExistsForUpdateAsync
 ExistsOverlappingAsync
 ```
 
-Write repositories must not open their own transaction. The command handler starts the transaction through `IWriteTransactionRunner`.
+Command repositories must not open their own transaction. The handler uses
+`IGeneralTransactionRunner` or `IShardTransactionRunner`.
 
 Race-sensitive checks and command-side consistency checks belong on the write side.
 
@@ -424,15 +408,17 @@ DbUp owns schema changes.
 Production migrations live in the centralized migrator project:
 
 ```text
-tools/Apex.DatabaseMigrator/Scripts/<ModuleName>/
+tools/Apex.DatabaseMigrator/Scripts/General/
+tools/Apex.DatabaseMigrator/Scripts/Shard/
 ```
 
 Example:
 
 ```text
-tools/Apex.DatabaseMigrator/Scripts/Accounting/
-  000001_create_accounting_book.sql
-  000002_create_fiscal_year.sql
+tools/Apex.DatabaseMigrator/Scripts/General/
+  000001_create_general_schema.sql
+tools/Apex.DatabaseMigrator/Scripts/Shard/
+  000001_create_partition_operation.sql
 ```
 
 Migration naming uses:
@@ -451,21 +437,26 @@ Rules:
 
 ## 15. Sharding
 
-Apex supports optional module-aware sharding.
+Apex uses database-level sharding for sharded data. `AccountingBook` is
+general data; Accounting data for one book and fiscal year shares one
+`ShardKey` and must remain co-located.
 
-When a table is sharded, repositories must resolve the physical table name through `IShardResolver`:
+Repositories convert the explicit shard key reference through a key factory and open
+a shard session:
 
 ```text
-IShardResolver.ResolveTableName(moduleName, logicalTableName, shardContext)
+ShardKey
+  -> IShardKeyFactory<ShardKey>
+  -> IShardConnectionFactory / IShardTransactionRunner
 ```
 
 Rules:
 
-- Do not hardcode shard-specific table names.
-- Do not hardcode shard-specific connection strings.
-- Sharding decisions belong in resolvers, not in handlers.
-- Use cases may pass shard context, such as fiscal year, into repositories.
-- Repositories use the shard resolver to choose the physical table.
+- Table names remain fixed and owned by repositories.
+- Connection names are allow-listed configuration keys resolved from the shard directory.
+- Placement and physical routing belong to infrastructure, not handlers.
+- Use cases pass explicit shard keys, never shard metadata.
+- One transaction may use only the general database or one shard database.
 
 ## 16. Error Handling Architecture
 
@@ -570,8 +561,8 @@ Handler integration tests
 Domain/unit tests
   -> pure rules, transitions, validators, value objects
 
-Read/write infrastructure tests
-  -> prove read/write separation when databases differ
+Sharding infrastructure tests
+  -> prove directory routing and physical shard isolation
 ```
 
 ### HTTP Smoke Tests
@@ -631,8 +622,8 @@ Recommended order:
 ```text
 1. Add DbUp migration using 000001_... naming.
 2. Add domain model, enum/value objects, and error constants.
-3. Add SQL model.
-4. Add read and write repositories.
+3. Add the normal row entity; add projection rows only when materially different.
+4. Add query and command repositories for the correct database role.
 5. Add use case requests, responses, validators, and handlers.
 6. Add capability endpoint mapper.
 7. Wire capability endpoint mapper into module endpoint mapper.
@@ -652,8 +643,8 @@ This order keeps schema, domain behavior, persistence, API surface, and tests al
 | Business workflow | Handler | Endpoint/repository |
 | State transitions | Domain | Endpoint/repository |
 | SQL text | Repository | Endpoint/handler/domain |
-| Transaction start | Handler via `IWriteTransactionRunner` | Repository/domain |
-| DB row shape | SQL model | Domain entity only |
+| Transaction start | Handler via general/shard transaction runner | Repository/domain |
+| DB row shape | Internal repository row | Domain/handler/public API |
 | Error-to-HTTP mapping | Middleware | Endpoint/handler |
 | Schema changes | DbUp migration | Runtime code |
 | Business behavior tests | Handler integration tests | Large HTTP test suites |
@@ -673,7 +664,7 @@ SELECT *
 SQL identity columns for application IDs
 Direct DateTime.UtcNow
 Hardcoded module-name strings
-Generic ISqlModel marker interfaces
+Generic or public row-model marker interfaces
 Broad persistence behavior on domain entities
 Arranging business tests with raw SQL
 Putting full lifecycle workflows in HTTP smoke tests

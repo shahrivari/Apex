@@ -9,8 +9,8 @@ using FluentValidation;
 namespace Apex.Modules.Accounting.AccountingBooks.UseCases.CreateAccountingBook;
 
 public sealed class CreateAccountingBookHandler(
-    IWriteTransactionRunner transactionRunner,
-    AccountingBookWriteRepository writeRepository,
+    IGeneralTransactionRunner transactionRunner,
+    IAccountingBookWriteRepository writeRepository,
     IIdGenerator idGenerator,
     IClock clock,
     IValidator<CreateAccountingBookRequest> validator)
@@ -27,7 +27,7 @@ public sealed class CreateAccountingBookHandler(
 
         CreateAccountingBookResponse? response = null;
 
-        await transactionRunner.ExecuteAsync(AccountingModule.Name, async ct =>
+        await transactionRunner.ExecuteAsync(async ct =>
         {
             var codeExists = await writeRepository.ExistsByCodeForUpdateAsync(normalizedCode, ct);
             if (codeExists)

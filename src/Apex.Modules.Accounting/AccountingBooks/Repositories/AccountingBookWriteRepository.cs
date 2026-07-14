@@ -1,24 +1,24 @@
 using Apex.Application.Abstractions.Data;
 using Dapper;
 using Apex.Modules.Accounting.AccountingBooks.Domain;
-using Apex.Modules.Accounting.AccountingBooks.SqlModels;
+using Apex.Modules.Accounting.AccountingBooks.Repositories.Rows;
 
 namespace Apex.Modules.Accounting.AccountingBooks.Repositories;
 
-public sealed class AccountingBookWriteRepository
+public sealed class AccountingBookWriteRepository : IAccountingBookWriteRepository
 {
-    private readonly IWriteDbSession _session;
+    private readonly IGeneralConnectionFactory _connectionFactory;
 
-    public AccountingBookWriteRepository(IWriteDbSession session)
+    public AccountingBookWriteRepository(IGeneralConnectionFactory connectionFactory)
     {
-        _session = session;
+        _connectionFactory = connectionFactory;
     }
 
     public async Task InsertAsync(
         AccountingBook book,
         CancellationToken cancellationToken = default)
     {
-        await _session.Connection.ExecuteAsync(
+        await (await _connectionFactory.OpenAsync(cancellationToken)).ExecuteAsync(
             new CommandDefinition(
                 """
                 INSERT INTO accounting_book (
@@ -50,7 +50,7 @@ public sealed class AccountingBookWriteRepository
                     Status = book.Status.ToDatabaseValue(),
                     book.CreatedAt
                 },
-                transaction: _session.Transaction,
+                transaction: _connectionFactory.Transaction,
                 cancellationToken: cancellationToken));
     }
 
@@ -58,7 +58,7 @@ public sealed class AccountingBookWriteRepository
         long id,
         CancellationToken cancellationToken = default)
     {
-        var model = await _session.Connection.QuerySingleOrDefaultAsync<AccountingBookSqlModel>(
+        var row = await (await _connectionFactory.OpenAsync(cancellationToken)).QuerySingleOrDefaultAsync<AccountingBookRow>(
             new CommandDefinition(
                 """
                 SELECT
@@ -77,17 +77,30 @@ public sealed class AccountingBookWriteRepository
                 WHERE id = @Id
                 """,
                 new { Id = id },
-                transaction: _session.Transaction,
+                transaction: _connectionFactory.Transaction,
                 cancellationToken: cancellationToken));
 
-        return model == null ? null : model.MapToDomain();
+        return row is null
+            ? null
+            : AccountingBook.CreateFromSql(
+                row.Id,
+                row.Code,
+                row.Title,
+                row.OwnerType,
+                row.OwnerId,
+                AccountingBookStatusExtensions.FromDatabaseValue(row.Status),
+                row.CreatedAt,
+                row.UpdatedAt,
+                row.ActivatedAt,
+                row.SuspendedAt,
+                row.ArchivedAt);
     }
 
     public async Task<bool> ExistsByCodeForUpdateAsync(
         string code,
         CancellationToken cancellationToken = default)
     {
-        var count = await _session.Connection.ExecuteScalarAsync<int>(
+        var count = await (await _connectionFactory.OpenAsync(cancellationToken)).ExecuteScalarAsync<int>(
             new CommandDefinition(
                 """
                 SELECT COUNT(1)
@@ -95,7 +108,7 @@ public sealed class AccountingBookWriteRepository
                 WHERE code = @Code
                 """,
                 new { Code = code },
-                transaction: _session.Transaction,
+                transaction: _connectionFactory.Transaction,
                 cancellationToken: cancellationToken));
 
         return count > 0;
@@ -106,7 +119,7 @@ public sealed class AccountingBookWriteRepository
         string ownerId,
         CancellationToken cancellationToken = default)
     {
-        var count = await _session.Connection.ExecuteScalarAsync<int>(
+        var count = await (await _connectionFactory.OpenAsync(cancellationToken)).ExecuteScalarAsync<int>(
             new CommandDefinition(
                 """
                 SELECT COUNT(1)
@@ -114,7 +127,7 @@ public sealed class AccountingBookWriteRepository
                 WHERE owner_type = @OwnerType AND owner_id = @OwnerId
                 """,
                 new { OwnerType = ownerType, OwnerId = ownerId },
-                transaction: _session.Transaction,
+                transaction: _connectionFactory.Transaction,
                 cancellationToken: cancellationToken));
 
         return count > 0;
@@ -124,7 +137,7 @@ public sealed class AccountingBookWriteRepository
         AccountingBook book,
         CancellationToken cancellationToken = default)
     {
-        await _session.Connection.ExecuteAsync(
+        await (await _connectionFactory.OpenAsync(cancellationToken)).ExecuteAsync(
             new CommandDefinition(
                 """
                 UPDATE accounting_book
@@ -145,7 +158,7 @@ public sealed class AccountingBookWriteRepository
                     book.SuspendedAt,
                     book.ArchivedAt
                 },
-                transaction: _session.Transaction,
+                transaction: _connectionFactory.Transaction,
                 cancellationToken: cancellationToken));
     }
 

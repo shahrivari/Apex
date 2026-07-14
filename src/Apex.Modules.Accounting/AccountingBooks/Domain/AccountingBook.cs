@@ -59,22 +59,6 @@ public sealed class AccountingBook
         };
     }
 
-    internal static AccountingBook CreateFromSql(SqlModels.AccountingBookSqlModel model)
-    {
-        return CreateFromSql(
-            model.Id,
-            model.Code,
-            model.Title,
-            model.OwnerType,
-            model.OwnerId,
-            AccountingBookStatusExtensions.FromDatabaseValue(model.Status),
-            model.CreatedAt,
-            model.UpdatedAt,
-            model.ActivatedAt,
-            model.SuspendedAt,
-            model.ArchivedAt);
-    }
-
     public static AccountingBook Create(
         long id,
         string code,

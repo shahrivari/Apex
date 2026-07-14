@@ -16,8 +16,8 @@ public static class AccountingBookEndpoints
     public static IEndpointRouteBuilder MapAccountingBookEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/v1/accounting/books")
-            .WithTags("Accounting - Books");
-            //.RequireAuthorization(); disable auth for now 
+            .WithTags("Accounting - Books")
+            .RequireAuthorization();
 
         group.MapPost("", async (
                 [FromBody] CreateAccountingBookRequest request,

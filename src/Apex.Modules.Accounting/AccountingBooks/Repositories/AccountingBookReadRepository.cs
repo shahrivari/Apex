@@ -1,28 +1,26 @@
 using Apex.Application.Abstractions.Data;
-using Apex.Application.Abstractions.Exceptions;
 using Dapper;
-using Apex.Modules.Accounting.AccountingBooks.SqlModels;
-using System.Data.Common;
+using Apex.Modules.Accounting.AccountingBooks.Repositories.Rows;
 
 namespace Apex.Modules.Accounting.AccountingBooks.Repositories;
 
-public sealed class AccountingBookReadRepository
+public sealed class AccountingBookReadRepository : IAccountingBookReadRepository
 {
-    private readonly IReadDbConnectionFactory _connectionFactory;
+    private readonly IGeneralConnectionFactory _connectionFactory;
 
-    public AccountingBookReadRepository(IReadDbConnectionFactory connectionFactory)
+    public AccountingBookReadRepository(IGeneralConnectionFactory connectionFactory)
     {
         _connectionFactory = connectionFactory;
     }
 
-    public async Task<AccountingBookSqlModel?> GetByIdAsync(
+    public async Task<AccountingBookRow?> GetByIdAsync(
         long id,
         CancellationToken cancellationToken = default)
     {
-        await using var connection = await _connectionFactory
-            .OpenConnectionAsync(AccountingModule.Name, cancellationToken);
+        var connection = await _connectionFactory
+            .OpenAsync(cancellationToken);
 
-        return await connection.QuerySingleOrDefaultAsync<AccountingBookSqlModel>(
+        return await connection.QuerySingleOrDefaultAsync<AccountingBookRow>(
             new CommandDefinition(
                 """
                 SELECT
@@ -44,14 +42,14 @@ public sealed class AccountingBookReadRepository
                 cancellationToken: cancellationToken));
     }
 
-    public async Task<AccountingBookSqlModel?> GetByCodeAsync(
+    public async Task<AccountingBookRow?> GetByCodeAsync(
         string code,
         CancellationToken cancellationToken = default)
     {
-        await using var connection = await _connectionFactory
-            .OpenConnectionAsync(AccountingModule.Name, cancellationToken);
+        var connection = await _connectionFactory
+            .OpenAsync(cancellationToken);
 
-        return await connection.QuerySingleOrDefaultAsync<AccountingBookSqlModel>(
+        return await connection.QuerySingleOrDefaultAsync<AccountingBookRow>(
             new CommandDefinition(
                 """
                 SELECT
@@ -73,15 +71,15 @@ public sealed class AccountingBookReadRepository
                 cancellationToken: cancellationToken));
     }
 
-    public async Task<AccountingBookSqlModel?> GetByOwnerAsync(
+    public async Task<AccountingBookRow?> GetByOwnerAsync(
         string ownerType,
         string ownerId,
         CancellationToken cancellationToken = default)
     {
-        await using var connection = await _connectionFactory
-            .OpenConnectionAsync(AccountingModule.Name, cancellationToken);
+        var connection = await _connectionFactory
+            .OpenAsync(cancellationToken);
 
-        return await connection.QuerySingleOrDefaultAsync<AccountingBookSqlModel>(
+        return await connection.QuerySingleOrDefaultAsync<AccountingBookRow>(
             new CommandDefinition(
                 """
                 SELECT
@@ -107,8 +105,8 @@ public sealed class AccountingBookReadRepository
         string code,
         CancellationToken cancellationToken = default)
     {
-        await using var connection = await _connectionFactory
-            .OpenConnectionAsync(AccountingModule.Name, cancellationToken);
+        var connection = await _connectionFactory
+            .OpenAsync(cancellationToken);
 
         var count = await connection.ExecuteScalarAsync<int>(
             new CommandDefinition(
@@ -128,8 +126,8 @@ public sealed class AccountingBookReadRepository
         string ownerId,
         CancellationToken cancellationToken = default)
     {
-        await using var connection = await _connectionFactory
-            .OpenConnectionAsync(AccountingModule.Name, cancellationToken);
+        var connection = await _connectionFactory
+            .OpenAsync(cancellationToken);
 
         var count = await connection.ExecuteScalarAsync<int>(
             new CommandDefinition(
@@ -144,7 +142,7 @@ public sealed class AccountingBookReadRepository
         return count > 0;
     }
 
-    public async Task<(IReadOnlyList<AccountingBookSqlModel> Items, int TotalCount)> ListAsync(
+    public async Task<(IReadOnlyList<AccountingBookRow> Items, int TotalCount)> ListAsync(
         string? status = null,
         string? ownerType = null,
         string? ownerId = null,
@@ -197,7 +195,11 @@ public sealed class AccountingBookReadRepository
                 owner_type AS OwnerType,
                 owner_id AS OwnerId,
                 status AS Status,
-                created_at AS CreatedAt
+                created_at AS CreatedAt,
+                updated_at AS UpdatedAt,
+                activated_at AS ActivatedAt,
+                suspended_at AS SuspendedAt,
+                archived_at AS ArchivedAt
             FROM accounting_book
             {whereClause}
             ORDER BY created_at DESC, id DESC
@@ -206,16 +208,16 @@ public sealed class AccountingBookReadRepository
         parameters.Add("Skip", skip);
         parameters.Add("PageSize", pageSize);
 
-        await using var connection = await _connectionFactory
-            .OpenConnectionAsync(AccountingModule.Name, cancellationToken);
+        var connection = await _connectionFactory
+            .OpenAsync(cancellationToken);
 
         var totalCount = await connection.ExecuteScalarAsync<int>(
             new CommandDefinition(countSql, parameters, cancellationToken: cancellationToken));
 
-        var items = (await connection.QueryAsync<AccountingBookSqlModel>(
+        var rows = (await connection.QueryAsync<AccountingBookRow>(
             new CommandDefinition(itemsSql, parameters, cancellationToken: cancellationToken)))
             .ToList();
 
-        return (items, totalCount);
+        return (rows, totalCount);
     }
 }
