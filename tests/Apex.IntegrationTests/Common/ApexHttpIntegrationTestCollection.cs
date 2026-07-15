@@ -1,3 +1,5 @@
+using Apex.IntegrationTests.Common;
+
 namespace Apex.IntegrationTests.Http;
 
 [CollectionDefinition(Name)]

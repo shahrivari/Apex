@@ -13,7 +13,7 @@ using Apex.Application.Abstractions.Data;
 public sealed class ApexIntegrationTestFixture : IAsyncLifetime
 {
     private readonly MsSqlContainer _accountingDb = 
-        new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-latest").Build();
+        new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-CU14-ubuntu-22.04").Build();
     
     public string AccountingConnectionString => _accountingDb.GetConnectionString();
     public string ShardConnectionString { get; private set; } = null!;

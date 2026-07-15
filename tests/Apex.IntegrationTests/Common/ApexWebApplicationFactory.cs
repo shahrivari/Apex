@@ -1,24 +1,24 @@
-using Apex.DatabaseMigrator.Migrations;
-using Dapper;
-using Microsoft.Extensions.Configuration;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.TestHost;
-using Microsoft.Data.SqlClient;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
-using Microsoft.Extensions.Logging;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
+using Apex.DatabaseMigrator.Migrations;
+using Dapper;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Testcontainers.MsSql;
 
-namespace Apex.IntegrationTests.Http;
+namespace Apex.IntegrationTests.Common;
 
 public class ApexWebApplicationFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     private readonly MsSqlContainer _sqlContainer =
-        new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-latest").Build();
+        new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-CU14-ubuntu-22.04").Build();
 
     public string AccountingConnectionString => _sqlContainer.GetConnectionString();
 
