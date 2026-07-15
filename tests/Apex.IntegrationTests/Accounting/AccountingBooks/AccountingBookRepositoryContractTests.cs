@@ -4,6 +4,8 @@ using Apex.Application.Abstractions.Data;
 using Apex.IntegrationTests.Common;
 using Apex.Modules.Accounting.AccountingBooks.Domain;
 using Apex.Modules.Accounting.AccountingBooks.Repositories;
+using Dapper;
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
 
 [Collection(ApexIntegrationTestCollection.Name)]
@@ -136,6 +138,199 @@ public sealed class AccountingBookRepositoryContractTests(ApexIntegrationTestFix
         Assert.Equal(activatedAt, archived.ActivatedAt);
         Assert.Equal(suspendedAt, archived.SuspendedAt);
         Assert.Equal(archivedAt, archived.ArchivedAt);
+    }
+
+    [Fact]
+    public async Task Seeded_Table_Row_Should_Map_To_Complete_Row_And_Domain_Entity()
+    {
+        await ResetAccountingDatabaseAsync();
+        var createdAt = Utc(2026, 4, 1, 7, 8, 9, 100);
+        var updatedAt = Utc(2026, 4, 2, 8, 9, 10, 200);
+        var activatedAt = Utc(2026, 4, 3, 9, 10, 11, 300);
+        var suspendedAt = Utc(2026, 4, 4, 10, 11, 12, 400);
+
+        await using (var connection = CreateAccountingConnection())
+        {
+            await connection.OpenAsync();
+            await InsertRawAsync(
+                connection,
+                1_000_000_000_003,
+                "BOOK-SEEDED",
+                "Seeded book",
+                "PORTFOLIO",
+                "OWNER-SEEDED",
+                "SUSPENDED",
+                createdAt,
+                updatedAt,
+                activatedAt,
+                suspendedAt,
+                null);
+        }
+
+        await using var scope = await CreateScopeAsync();
+        var readRepository = scope.Services.GetRequiredService<IAccountingBookReadRepository>();
+        var writeRepository = scope.Services.GetRequiredService<IAccountingBookWriteRepository>();
+        var transactionRunner = scope.Services.GetRequiredService<IGeneralTransactionRunner>();
+
+        var row = await readRepository.GetByIdAsync(1_000_000_000_003);
+        Assert.NotNull(row);
+        Assert.Equal(1_000_000_000_003, row.Id);
+        Assert.Equal("BOOK-SEEDED", row.Code);
+        Assert.Equal("Seeded book", row.Title);
+        Assert.Equal("PORTFOLIO", row.OwnerType);
+        Assert.Equal("OWNER-SEEDED", row.OwnerId);
+        Assert.Equal("SUSPENDED", row.Status);
+        Assert.Equal(createdAt, row.CreatedAt);
+        Assert.Equal(updatedAt, row.UpdatedAt);
+        Assert.Equal(activatedAt, row.ActivatedAt);
+        Assert.Equal(suspendedAt, row.SuspendedAt);
+        Assert.Null(row.ArchivedAt);
+
+        var domain = await transactionRunner.ExecuteAsync(async ct =>
+            Assert.IsType<AccountingBook>(
+                await writeRepository.GetByIdForUpdateAsync(row.Id, ct)));
+
+        Assert.Equal(row.Id, domain.Id);
+        Assert.Equal(row.Code, domain.Code);
+        Assert.Equal(row.Title, domain.Title);
+        Assert.Equal(row.OwnerType, domain.OwnerType);
+        Assert.Equal(row.OwnerId, domain.OwnerId);
+        Assert.Equal(AccountingBookStatus.Suspended, domain.Status);
+        Assert.Equal(row.CreatedAt, domain.CreatedAt);
+        Assert.Equal(row.UpdatedAt, domain.UpdatedAt);
+        Assert.Equal(row.ActivatedAt, domain.ActivatedAt);
+        Assert.Equal(row.SuspendedAt, domain.SuspendedAt);
+        Assert.Equal(row.ArchivedAt, domain.ArchivedAt);
+    }
+
+    [Fact]
+    public async Task Database_Should_Enforce_Unique_Code_And_Owner()
+    {
+        await ResetAccountingDatabaseAsync();
+        await using var connection = CreateAccountingConnection();
+        await connection.OpenAsync();
+        var createdAt = Utc(2026, 5, 1, 0, 0, 0, 0);
+
+        await InsertRawAsync(
+            connection,
+            1_000_000_000_010,
+            "BOOK-UNIQUE",
+            "Original",
+            "PORTFOLIO",
+            "OWNER-UNIQUE",
+            "DRAFT",
+            createdAt);
+
+        await Assert.ThrowsAsync<SqlException>(() => InsertRawAsync(
+            connection,
+            1_000_000_000_011,
+            "BOOK-UNIQUE",
+            "Duplicate code",
+            "PORTFOLIO",
+            "OWNER-OTHER",
+            "DRAFT",
+            createdAt));
+
+        await Assert.ThrowsAsync<SqlException>(() => InsertRawAsync(
+            connection,
+            1_000_000_000_012,
+            "BOOK-OTHER",
+            "Duplicate owner",
+            "PORTFOLIO",
+            "OWNER-UNIQUE",
+            "DRAFT",
+            createdAt));
+    }
+
+    [Theory]
+    [InlineData(null, "Title", "PORTFOLIO", "OWNER-1", "DRAFT")]
+    [InlineData("BOOK-1", null, "PORTFOLIO", "OWNER-1", "DRAFT")]
+    [InlineData("BOOK-1", "Title", null, "OWNER-1", "DRAFT")]
+    [InlineData("BOOK-1", "Title", "PORTFOLIO", null, "DRAFT")]
+    [InlineData("   ", "Title", "PORTFOLIO", "OWNER-1", "DRAFT")]
+    [InlineData("BOOK-1", "   ", "PORTFOLIO", "OWNER-1", "DRAFT")]
+    [InlineData("BOOK-1", "Title", "   ", "OWNER-1", "DRAFT")]
+    [InlineData("BOOK-1", "Title", "PORTFOLIO", "   ", "DRAFT")]
+    [InlineData("BOOK-1", "Title", "PORTFOLIO", "OWNER-1", "INVALID")]
+    public async Task Database_Should_Reject_Invalid_Required_Values(
+        string? code,
+        string? title,
+        string? ownerType,
+        string? ownerId,
+        string status)
+    {
+        await ResetAccountingDatabaseAsync();
+        await using var connection = CreateAccountingConnection();
+        await connection.OpenAsync();
+
+        await Assert.ThrowsAsync<SqlException>(() => InsertRawAsync(
+            connection,
+            1_000_000_000_020,
+            code,
+            title,
+            ownerType,
+            ownerId,
+            status,
+            Utc(2026, 5, 2, 0, 0, 0, 0)));
+    }
+
+    private static Task<int> InsertRawAsync(
+        SqlConnection connection,
+        long id,
+        string? code,
+        string? title,
+        string? ownerType,
+        string? ownerId,
+        string status,
+        DateTime createdAt,
+        DateTime? updatedAt = null,
+        DateTime? activatedAt = null,
+        DateTime? suspendedAt = null,
+        DateTime? archivedAt = null)
+    {
+        return connection.ExecuteAsync(
+            """
+            INSERT INTO accounting_book (
+                id,
+                code,
+                title,
+                owner_type,
+                owner_id,
+                status,
+                created_at,
+                updated_at,
+                activated_at,
+                suspended_at,
+                archived_at
+            )
+            VALUES (
+                @Id,
+                @Code,
+                @Title,
+                @OwnerType,
+                @OwnerId,
+                @Status,
+                @CreatedAt,
+                @UpdatedAt,
+                @ActivatedAt,
+                @SuspendedAt,
+                @ArchivedAt
+            )
+            """,
+            new
+            {
+                Id = id,
+                Code = code,
+                Title = title,
+                OwnerType = ownerType,
+                OwnerId = ownerId,
+                Status = status,
+                CreatedAt = createdAt,
+                UpdatedAt = updatedAt,
+                ActivatedAt = activatedAt,
+                SuspendedAt = suspendedAt,
+                ArchivedAt = archivedAt
+            });
     }
 
     private static DateTime Utc(
