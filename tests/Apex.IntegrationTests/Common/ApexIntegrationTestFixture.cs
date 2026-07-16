@@ -67,6 +67,9 @@ public sealed class ApexIntegrationTestFixture : IAsyncLifetime
                 INSERT INTO db_marker(name) VALUES ('ACCOUNTING_DATABASE');
             END
 
+            IF OBJECT_ID('fiscal_year', 'U') IS NOT NULL
+                DELETE FROM fiscal_year;
+
             IF OBJECT_ID('accounting_book', 'U') IS NOT NULL
                 DELETE FROM accounting_book;
             """);

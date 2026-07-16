@@ -96,6 +96,20 @@ public sealed class AccountingBookWriteRepository : IAccountingBookWriteReposito
                 row.ArchivedAt);
     }
 
+    public async Task<bool> ExistsByIdForUpdateAsync(
+        long id,
+        CancellationToken cancellationToken = default)
+    {
+        var count = await (await _connectionFactory.OpenAsync(cancellationToken)).ExecuteScalarAsync<int>(
+            new CommandDefinition(
+                "SELECT COUNT(1) FROM accounting_book WITH (UPDLOCK, HOLDLOCK) WHERE id = @Id",
+                new { Id = id },
+                transaction: _connectionFactory.Transaction,
+                cancellationToken: cancellationToken));
+
+        return count == 1;
+    }
+
     public async Task<bool> ExistsByCodeForUpdateAsync(
         string code,
         CancellationToken cancellationToken = default)

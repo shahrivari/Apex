@@ -1,4 +1,5 @@
 using Apex.Modules.Accounting.AccountingBooks;
+using Apex.Modules.Accounting.FiscalYears;
 
 namespace Apex.Modules.Accounting.Endpoints;
 
@@ -21,6 +22,7 @@ public static class AccountingEndpoints
         .AllowAnonymous();
 
         app.MapAccountingBookEndpoints();
+        app.MapFiscalYearEndpoints();
 
         return app;
     }

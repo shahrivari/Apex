@@ -39,6 +39,9 @@ public class ApexWebApplicationFactory : WebApplicationFactory<Program>, IAsyncL
         await using var connection = new SqlConnection(AccountingConnectionString);
         await connection.OpenAsync();
         await connection.ExecuteAsync(@"
+            IF OBJECT_ID('fiscal_year', 'U') IS NOT NULL
+                DELETE FROM fiscal_year;
+
             IF OBJECT_ID('accounting_book', 'U') IS NOT NULL
                 DELETE FROM accounting_book;
         ");
@@ -86,6 +89,10 @@ public class ApexWebApplicationFactory : WebApplicationFactory<Program>, IAsyncL
 
         protected override Task<AuthenticateResult> HandleAuthenticateAsync()
         {
+            if (Request.Headers.TryGetValue("X-Test-Unauthenticated", out var value)
+                && string.Equals(value.ToString(), "true", StringComparison.OrdinalIgnoreCase))
+                return Task.FromResult(AuthenticateResult.NoResult());
+
             var identity = new ClaimsIdentity(
                 [new Claim(ClaimTypes.NameIdentifier, "integration-test-user")],
                 AuthenticationScheme);

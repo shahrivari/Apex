@@ -12,6 +12,10 @@ public interface IAccountingBookWriteRepository
         long id,
         CancellationToken cancellationToken = default);
 
+    Task<bool> ExistsByIdForUpdateAsync(
+        long id,
+        CancellationToken cancellationToken = default);
+
     Task<bool> ExistsByCodeForUpdateAsync(
         string code,
         CancellationToken cancellationToken = default);

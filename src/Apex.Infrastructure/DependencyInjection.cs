@@ -15,6 +15,8 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        DapperDateOnlyTypeHandler.Register();
+
         services.AddSingleton<SqlShardDirectory>();
         services.AddSingleton<IShardDirectory>(provider =>
             provider.GetRequiredService<SqlShardDirectory>());
