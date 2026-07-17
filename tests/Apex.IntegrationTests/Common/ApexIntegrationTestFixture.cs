@@ -70,6 +70,15 @@ public sealed class ApexIntegrationTestFixture : IAsyncLifetime
             IF OBJECT_ID('fiscal_year', 'U') IS NOT NULL
                 DELETE FROM fiscal_year;
 
+            IF OBJECT_ID('subsidiary_account', 'U') IS NOT NULL
+                DELETE FROM subsidiary_account;
+
+            IF OBJECT_ID('general_account', 'U') IS NOT NULL
+                DELETE FROM general_account;
+
+            IF OBJECT_ID('account_class', 'U') IS NOT NULL
+                DELETE FROM account_class;
+
             IF OBJECT_ID('accounting_book', 'U') IS NOT NULL
                 DELETE FROM accounting_book;
             """);

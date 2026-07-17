@@ -18,6 +18,7 @@ using Apex.Modules.Accounting.FiscalYears.UseCases.ListFiscalYears;
 using Apex.Modules.Accounting.FiscalYears.UseCases.OpenFiscalYear;
 using Apex.Modules.Accounting.FiscalYears.UseCases.ResolveFiscalYear;
 using Apex.Modules.Accounting.FiscalYears.UseCases.UpdateFiscalYear;
+using Apex.Modules.Accounting.ChartOfAccounts.Repositories;
 using FluentValidation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -33,6 +34,12 @@ public static class DependencyInjection
         services.AddScoped<IAccountingBookWriteRepository, AccountingBookWriteRepository>();
         services.AddScoped<IFiscalYearReadRepository, FiscalYearReadRepository>();
         services.AddScoped<IFiscalYearWriteRepository, FiscalYearWriteRepository>();
+        services.AddScoped<IAccountClassReadRepository, AccountClassReadRepository>();
+        services.AddScoped<IAccountClassWriteRepository, AccountClassWriteRepository>();
+        services.AddScoped<IGeneralAccountReadRepository, GeneralAccountReadRepository>();
+        services.AddScoped<IGeneralAccountWriteRepository, GeneralAccountWriteRepository>();
+        services.AddScoped<ISubsidiaryAccountReadRepository, SubsidiaryAccountReadRepository>();
+        services.AddScoped<ISubsidiaryAccountWriteRepository, SubsidiaryAccountWriteRepository>();
 
         // Handlers
         services.AddTransient<CreateAccountingBookHandler>();
@@ -51,6 +58,21 @@ public static class DependencyInjection
         services.AddTransient<FinalizeFiscalYearHandler>();
         services.AddTransient<CancelFiscalYearHandler>();
         services.AddTransient<AllocateDocumentNumberHandler>();
+        services.AddTransient<ChartOfAccounts.UseCases.CreateAccountClass.CreateAccountClassHandler>();
+        services.AddTransient<ChartOfAccounts.UseCases.UpdateAccountClass.UpdateAccountClassHandler>();
+        services.AddTransient<ChartOfAccounts.UseCases.ArchiveAccountClass.ArchiveAccountClassHandler>();
+        services.AddTransient<ChartOfAccounts.UseCases.ReactivateAccountClass.ReactivateAccountClassHandler>();
+        services.AddTransient<ChartOfAccounts.UseCases.CreateGeneralAccount.CreateGeneralAccountHandler>();
+        services.AddTransient<ChartOfAccounts.UseCases.UpdateGeneralAccount.UpdateGeneralAccountHandler>();
+        services.AddTransient<ChartOfAccounts.UseCases.ArchiveGeneralAccount.ArchiveGeneralAccountHandler>();
+        services.AddTransient<ChartOfAccounts.UseCases.ReactivateGeneralAccount.ReactivateGeneralAccountHandler>();
+        services.AddTransient<ChartOfAccounts.UseCases.CreateSubsidiaryAccount.CreateSubsidiaryAccountHandler>();
+        services.AddTransient<ChartOfAccounts.UseCases.UpdateSubsidiaryAccount.UpdateSubsidiaryAccountHandler>();
+        services.AddTransient<ChartOfAccounts.UseCases.ArchiveSubsidiaryAccount.ArchiveSubsidiaryAccountHandler>();
+        services.AddTransient<ChartOfAccounts.UseCases.ReactivateSubsidiaryAccount.ReactivateSubsidiaryAccountHandler>();
+        services.AddTransient<ChartOfAccounts.UseCases.GetAccount.GetAccountHandler>();
+        services.AddTransient<ChartOfAccounts.UseCases.GetAccountTree.GetAccountTreeHandler>();
+        services.AddTransient<ChartOfAccounts.UseCases.SearchAccounts.SearchAccountsHandler>();
 
         // Validators
         services.AddTransient<IValidator<CreateAccountingBookRequest>, CreateAccountingBookValidator>();
@@ -61,6 +83,13 @@ public static class DependencyInjection
         services.AddTransient<IValidator<ResolveFiscalYearRequest>, ResolveFiscalYearValidator>();
         services.AddTransient<IValidator<FinalizeFiscalYearRequest>, FinalizeFiscalYearValidator>();
         services.AddTransient<IValidator<CancelFiscalYearRequest>, CancelFiscalYearValidator>();
+        services.AddTransient<IValidator<ChartOfAccounts.UseCases.CreateAccountClass.CreateAccountClassRequest>, ChartOfAccounts.UseCases.CreateAccountClass.CreateAccountClassValidator>();
+        services.AddTransient<IValidator<ChartOfAccounts.UseCases.UpdateAccountClass.UpdateAccountClassRequest>, ChartOfAccounts.UseCases.UpdateAccountClass.UpdateAccountClassValidator>();
+        services.AddTransient<IValidator<ChartOfAccounts.UseCases.CreateGeneralAccount.CreateGeneralAccountRequest>, ChartOfAccounts.UseCases.CreateGeneralAccount.CreateGeneralAccountValidator>();
+        services.AddTransient<IValidator<ChartOfAccounts.UseCases.UpdateGeneralAccount.UpdateGeneralAccountRequest>, ChartOfAccounts.UseCases.UpdateGeneralAccount.UpdateGeneralAccountValidator>();
+        services.AddTransient<IValidator<ChartOfAccounts.UseCases.CreateSubsidiaryAccount.CreateSubsidiaryAccountRequest>, ChartOfAccounts.UseCases.CreateSubsidiaryAccount.CreateSubsidiaryAccountValidator>();
+        services.AddTransient<IValidator<ChartOfAccounts.UseCases.UpdateSubsidiaryAccount.UpdateSubsidiaryAccountRequest>, ChartOfAccounts.UseCases.UpdateSubsidiaryAccount.UpdateSubsidiaryAccountValidator>();
+        services.AddTransient<IValidator<ChartOfAccounts.UseCases.SearchAccounts.SearchAccountsRequest>, ChartOfAccounts.UseCases.SearchAccounts.SearchAccountsValidator>();
 
         return services;
     }
