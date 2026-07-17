@@ -181,6 +181,14 @@ transaction is an error; rollback without an active transaction is a no-op.
 Prefer `IGeneralTransactionRunner` at the command-workflow boundary instead of
 manually coordinating begin, commit, and rollback in handlers.
 
+`IGeneralTransactionRunner.ExecuteStandaloneAsync` is reserved for operations
+that must commit before a later workflow transaction and whose committed result
+must survive that later transaction's rollback. It rejects an already-active
+General Database transaction instead of joining it. Callers must invoke the
+standalone operation before beginning their ordinary workflow transaction.
+Document-number allocation is the initial use of this contract. Failures with
+an ambiguous commit outcome must not be retried blindly.
+
 Sharded repositories use:
 
 ```csharp

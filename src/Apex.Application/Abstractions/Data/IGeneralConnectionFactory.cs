@@ -22,4 +22,8 @@ public interface IGeneralTransactionRunner
     Task<T> ExecuteAsync<T>(
         Func<CancellationToken, Task<T>> action,
         CancellationToken cancellationToken = default);
+
+    Task<T> ExecuteStandaloneAsync<T>(
+        Func<CancellationToken, Task<T>> action,
+        CancellationToken cancellationToken = default);
 }

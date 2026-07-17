@@ -11,7 +11,7 @@ public sealed class AllocateDocumentNumberHandler(
 {
     public async Task<long> HandleAsync(long fiscalYearId, CancellationToken cancellationToken = default)
     {
-        return await transactionRunner.ExecuteAsync(async ct =>
+        return await transactionRunner.ExecuteStandaloneAsync(async ct =>
             await writeRepository.AllocateDocumentNumberAsync(fiscalYearId, ct)
             ?? throw new NotFoundException(
                 "An eligible fiscal year was not found for document-number allocation.",

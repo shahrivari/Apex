@@ -371,6 +371,10 @@ This is an internal Accounting operation and is not a public user-facing operati
 
 Allocated numbers are not returned to the sequence after failure or rollback. Gaps are valid and expected.
 
+Document-number allocation is a standalone pre-transaction operation. It commits before the transaction that creates the accounting document begins and must not be invoked while a General Database transaction is already active. A later document failure or rollback does not return the committed number to the sequence.
+
+If allocation itself fails before its transaction commits, no number is returned to the caller. An ambiguous connection or commit failure must not be retried blindly because the caller may not know whether the increment committed.
+
 ### 9.10 Cancel Fiscal Year
 
 #### Business intent

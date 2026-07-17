@@ -46,4 +46,55 @@ public sealed class SqlGeneralTransactionRunnerTests
         await connectionFactory.DidNotReceive().BeginTransactionAsync(Arg.Any<CancellationToken>());
         await connectionFactory.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
+
+    [Fact]
+    public async Task ExecuteStandaloneAsync_Should_Begin_And_Commit()
+    {
+        var connectionFactory = Substitute.For<IGeneralConnectionFactory>();
+        var runner = new SqlGeneralTransactionRunner(connectionFactory);
+
+        var result = await runner.ExecuteStandaloneAsync(_ => Task.FromResult(42));
+
+        Assert.Equal(42, result);
+        await connectionFactory.Received(1).BeginTransactionAsync(Arg.Any<CancellationToken>());
+        await connectionFactory.Received(1).CommitAsync(Arg.Any<CancellationToken>());
+        await connectionFactory.DidNotReceive().RollbackAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteStandaloneAsync_Should_Roll_Back_On_Failure()
+    {
+        var connectionFactory = Substitute.For<IGeneralConnectionFactory>();
+        var runner = new SqlGeneralTransactionRunner(connectionFactory);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            runner.ExecuteStandaloneAsync<int>(_ => throw new InvalidOperationException("boom")));
+
+        await connectionFactory.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
+        await connectionFactory.Received(1).RollbackAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task ExecuteStandaloneAsync_Should_Reject_Active_Transaction_Without_Invoking_Action()
+    {
+        var connectionFactory = Substitute.For<IGeneralConnectionFactory>();
+        connectionFactory.HasActiveTransaction.Returns(true);
+        var runner = new SqlGeneralTransactionRunner(connectionFactory);
+        var invoked = false;
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            runner.ExecuteStandaloneAsync(_ =>
+            {
+                invoked = true;
+                return Task.FromResult(42);
+            }));
+
+        Assert.Equal(
+            "A standalone general transaction cannot start while another general transaction is active.",
+            exception.Message);
+        Assert.False(invoked);
+        await connectionFactory.DidNotReceive().BeginTransactionAsync(Arg.Any<CancellationToken>());
+        await connectionFactory.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
+        await connectionFactory.DidNotReceive().RollbackAsync(Arg.Any<CancellationToken>());
+    }
 }
