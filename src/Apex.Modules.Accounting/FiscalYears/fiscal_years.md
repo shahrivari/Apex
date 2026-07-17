@@ -61,7 +61,7 @@ Allocated numbers may contain gaps. A number that was allocated but not ultimate
 
 ### Draft
 
-The Fiscal Year has been defined but is not operational. Its dates may still be changed, and it may be deleted if it remains eligible for deletion.
+The Fiscal Year has been defined but is not operational. Its title and dates may still be changed. An unused draft may be deleted; it is not cancelled.
 
 ### Open
 
@@ -125,6 +125,16 @@ The following rules must always hold:
 23. Deletion is permitted only for an eligible draft Fiscal Year.
 24. Deletion permanently removes the draft definition and is different from cancellation.
 25. Business timestamps and allocated numbers are assigned by the system, not by clients.
+26. A Fiscal Year title is required, trimmed, limited to 256 characters, and does not need to be unique.
+27. A Fiscal Year may be created only for a `DRAFT`, `ACTIVE`, or `SUSPENDED` Accounting Book.
+28. A Fiscal Year may not be created for an `ARCHIVED` Accounting Book.
+29. A Fiscal Year may be opened only when its Accounting Book is `ACTIVE`.
+30. Only an `OPEN` Fiscal Year may be cancelled.
+31. Cancellation must take effect exactly on the finalized-through date.
+32. The original end date is preserved after cancellation; the cancellation date separately defines the effective final date.
+33. Finalization is irreversible through ordinary or administrative Fiscal Year operations.
+34. Closed and cancelled Fiscal Years remain available for authorized historical reading and reporting.
+35. Fiscal Year lifecycle operations do not publish business events unless a concrete consumer and delivery requirement are introduced later.
 
 ## 7. Effective Date Range
 
@@ -148,7 +158,6 @@ stateDiagram-v2
     [*] --> DRAFT: Create
     DRAFT --> OPEN: Open
     DRAFT --> [*]: Delete
-    DRAFT --> CANCELLED: Cancel
     OPEN --> CLOSED: Close
     OPEN --> CANCELLED: Cancel
     CLOSED --> [*]
@@ -161,7 +170,6 @@ stateDiagram-v2
 | --- | --- | --- |
 | `DRAFT` | Open | `OPEN` |
 | `DRAFT` | Delete | Removed |
-| `DRAFT` | Cancel | `CANCELLED` |
 | `OPEN` | Close | `CLOSED` |
 | `OPEN` | Cancel | `CANCELLED` |
 
@@ -170,9 +178,11 @@ All other transitions are invalid.
 ### Lifecycle rules
 
 - Opening requires that no other Fiscal Year in the Accounting Book is open.
+- Opening requires the owning Accounting Book to be active.
 - Opening does not alter any other Fiscal Year.
 - Closing is reserved for the later Fiscal Year Closing workflow.
 - Cancellation is not a substitute for ordinary closing.
+- Draft Fiscal Years are deleted rather than cancelled.
 - Closed and cancelled Fiscal Years cannot be reopened, modified, or deleted.
 - Repeating an invalid transition produces a business failure; it is not treated as a successful no-op.
 
@@ -200,6 +210,7 @@ Define a future accounting period for an Accounting Book.
 #### Business failures
 
 - The Accounting Book does not exist.
+- The Accounting Book is archived.
 - The caller is not permitted to manage the Accounting Book.
 - Required information is invalid or missing.
 - The date range overlaps another Fiscal Year of the same Accounting Book.
@@ -244,7 +255,7 @@ The draft Fiscal Year is permanently removed.
 - The Fiscal Year does not exist.
 - The caller is not permitted to manage it.
 - The Fiscal Year is not in `DRAFT` status.
-- The Fiscal Year has dependent accounting data or other dependencies that make deletion unsafe.
+- The Fiscal Year has any dependent accounting data, configuration, assignment, or other persisted dependency.
 
 ### 9.4 Get Fiscal Year
 
@@ -298,7 +309,7 @@ Make a draft Fiscal Year available for accounting operations.
 - The caller is not permitted to manage it.
 - The Fiscal Year is not in `DRAFT` status.
 - Another Fiscal Year in the same Accounting Book is already open.
-- A required Accounting Book condition is not satisfied.
+- The Accounting Book is not `ACTIVE`.
 
 Opening never closes or otherwise changes the existing open Fiscal Year.
 
@@ -351,6 +362,10 @@ Protect completed accounting activity through a specified date.
 
 Requesting the current finalized-through date may be treated as an idempotent success.
 
+For the current phase, finalization is an explicit authorized operator decision because the dependent accounting processes do not yet exist in Apex. As accounting ingestion, valuation, reconciliation, and document-generation processes are introduced, each process that can affect a date must expose a readiness check. Finalization must then require all applicable processes through the requested date to be complete, with no pending or failed work that could change accounting results.
+
+Finalization cannot be reversed. A correction to finalized accounting data must use an explicit corrective accounting workflow rather than moving the finalized-through date backward.
+
 ### 9.9 Allocate Document Number
 
 #### Business intent
@@ -379,7 +394,7 @@ If allocation itself fails before its transaction commits, no number is returned
 
 #### Business intent
 
-Permanently terminate a draft or open Fiscal Year at a specified effective date without ordinary year-end closing.
+Permanently terminate an open Fiscal Year at a specified effective date without ordinary year-end closing.
 
 #### Required information
 
@@ -396,12 +411,14 @@ Permanently terminate a draft or open Fiscal Year at a specified effective date 
 
 - The Fiscal Year does not exist.
 - The caller is not permitted to cancel it.
-- The Fiscal Year is neither draft nor open.
+- The Fiscal Year is not open.
 - The cancellation date is outside the Fiscal Year's original date range.
 - The cancellation date is not equal to the finalized-through date.
 - Accounting activity exists after the cancellation date.
 
 Cancellation does not delete the Fiscal Year or erase its accounting history.
+
+Cancellation preserves the original end date. The separate cancellation date becomes the effective final date used for accounting-date resolution and historical interpretation.
 
 ### 9.11 Close Fiscal Year
 
@@ -430,6 +447,8 @@ The Fiscal Year may become `CLOSED` only after that workflow completes successfu
 
 Exact permission names are defined by the application-wide authorization model.
 
+Closed and cancelled Fiscal Years are readable under the same Accounting Book read scope used for other historical accounting information. Their terminal status prevents mutation but does not hide them from authorized reporting.
+
 ## 11. Relationship with Accounting Books
 
 - Every Fiscal Year belongs to one Accounting Book.
@@ -439,7 +458,9 @@ Exact permission names are defined by the application-wide authorization model.
 - Deleting or archiving an Accounting Book must account for its Fiscal Years and their history.
 - Fiscal Years do not change Accounting Book lifecycle automatically.
 
-The exact Accounting Book statuses required for creating and opening a Fiscal Year must be settled as a business decision.
+- Fiscal Years may be created while the Accounting Book is `DRAFT`, `ACTIVE`, or `SUSPENDED`.
+- Fiscal Years may not be created for an `ARCHIVED` Accounting Book.
+- Opening requires the Accounting Book to be `ACTIVE`.
 
 ## 12. Relationship with Accounting Documents
 
@@ -491,19 +512,17 @@ Until then:
 - No next Fiscal Year is created automatically.
 - No expense, balance, or accounting configuration is copied automatically.
 
-## 16. Open Business Decisions
+## 16. Settled Business Decisions
 
-The following questions are not yet settled:
+1. Fiscal Years may be created for `DRAFT`, `ACTIVE`, and `SUSPENDED` Accounting Books, but not archived books.
+2. A Fiscal Year may be opened only when its Accounting Book is `ACTIVE`.
+3. A draft may be deleted only when it has no persisted dependencies, including non-posted configuration.
+4. Draft Fiscal Years are deleted, not cancelled. Cancellation applies only to open years.
+5. In the current phase, finalization is an authorized operator decision. Future accounting processes must participate in readiness validation when introduced.
+6. Finalization is irreversible. Corrections use accounting workflows rather than moving the boundary backward.
+7. Cancellation preserves the original end date and records a separate cancellation date as the effective final date.
+8. Closed and cancelled Fiscal Years remain readable for authorized historical reporting.
+9. No Fiscal Year lifecycle event is published until a concrete consumer requires one.
+10. The title is required, trimmed, limited to 256 characters, and not unique.
 
-1. Which Accounting Book statuses permit Fiscal Year creation?
-2. Which Accounting Book statuses permit opening a Fiscal Year?
-3. May a draft with dependent non-posted configuration still be deleted?
-4. May a draft Fiscal Year be cancelled, or should unused drafts only be deleted?
-5. What business processes must complete before a date can be finalized?
-6. Is finalization reversible through an exceptional administrative operation?
-7. Does cancellation change the stored end date or preserve both the original end date and cancellation date?
-8. Which operations may read closed or cancelled Fiscal Years for historical reporting?
-9. Must opening, finalization, cancellation, or future closing publish business events?
-10. What title format and uniqueness rules apply to Fiscal Years?
-
-Coding agents must not invent answers to these questions. A task that depends on one of them requires an explicit business decision and an update to this document.
+These decisions are authoritative. Coding agents must update this document when a later business decision changes them.

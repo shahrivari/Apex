@@ -29,7 +29,7 @@ public sealed class FiscalYear
         ValidateRange(startDate, endDate);
         if (id <= 0 || accountingBookId <= 0)
             throw new BusinessRuleException("Fiscal year identity is invalid.", FiscalYearErrors.InvalidDateRange);
-        if (string.IsNullOrWhiteSpace(title))
+        if (string.IsNullOrWhiteSpace(title) || title.Trim().Length > 256)
             throw new BusinessRuleException("Fiscal year title is required.", FiscalYearErrors.CannotBeUpdated);
         if (startDate == DateOnly.MinValue)
             throw new BusinessRuleException("Fiscal year start date is too early.", FiscalYearErrors.InvalidDateRange);
@@ -74,7 +74,7 @@ public sealed class FiscalYear
     {
         if (Status != FiscalYearStatus.Draft)
             throw new BusinessRuleException("Only a draft fiscal year can be updated.", FiscalYearErrors.CannotBeUpdated);
-        if (string.IsNullOrWhiteSpace(title))
+        if (string.IsNullOrWhiteSpace(title) || title.Trim().Length > 256)
             throw new BusinessRuleException("Fiscal year title is required.", FiscalYearErrors.CannotBeUpdated);
         ValidateRange(startDate, endDate);
         if (startDate == DateOnly.MinValue)
@@ -114,13 +114,10 @@ public sealed class FiscalYear
 
     public void Cancel(DateOnly cancellationDate, DateTime now)
     {
-        if ((Status != FiscalYearStatus.Draft && Status != FiscalYearStatus.Open)
+        if (Status != FiscalYearStatus.Open
             || cancellationDate < StartDate || cancellationDate > EndDate
-            || (Status == FiscalYearStatus.Open && cancellationDate != FinalizedThroughDate))
+            || cancellationDate != FinalizedThroughDate)
             throw new BusinessRuleException("The fiscal year cannot be cancelled at the requested date.", FiscalYearErrors.CannotBeCancelled);
-
-        if (Status == FiscalYearStatus.Draft)
-            FinalizedThroughDate = cancellationDate;
 
         Status = FiscalYearStatus.Cancelled;
         CancellationDate = cancellationDate;

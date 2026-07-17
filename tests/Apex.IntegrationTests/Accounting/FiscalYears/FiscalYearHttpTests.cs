@@ -187,7 +187,10 @@ public sealed class FiscalYearHttpTests : IAsyncLifetime
                 OwnerId = ownerId
             });
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        return (await response.Content.ReadFromJsonAsync<CreateAccountingBookResponse>(JsonOptions))!.Id;
+        var id = (await response.Content.ReadFromJsonAsync<CreateAccountingBookResponse>(JsonOptions))!.Id;
+        var activateResponse = await _client.PostAsync($"/api/v1/accounting/books/{id}/activate", null);
+        Assert.Equal(HttpStatusCode.OK, activateResponse.StatusCode);
+        return id;
     }
 
     private async Task<CreateFiscalYearResponse> CreateFiscalYearAsync(

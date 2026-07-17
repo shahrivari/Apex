@@ -83,17 +83,16 @@ public sealed class FiscalYearDomainTests
     }
 
     [Fact]
-    public void Cancel_Draft_UsesCancellationDateAsFinalizationBoundary()
+    public void Cancel_Draft_IsRejected()
     {
         var fiscalYear = CreateDraft();
         var cancellationDate = new DateOnly(2026, 3, 31);
 
-        fiscalYear.Cancel(cancellationDate, CreatedAt.AddDays(1));
+        var exception = Assert.Throws<BusinessRuleException>(() =>
+            fiscalYear.Cancel(cancellationDate, CreatedAt.AddDays(1)));
 
-        Assert.Equal(FiscalYearStatus.Cancelled, fiscalYear.Status);
-        Assert.Equal(cancellationDate, fiscalYear.FinalizedThroughDate);
-        Assert.Equal(cancellationDate, fiscalYear.CancellationDate);
-        Assert.Equal(cancellationDate, fiscalYear.EffectiveEndDate);
+        Assert.Equal(FiscalYearErrors.CannotBeCancelled, exception.ErrorCode);
+        Assert.Equal(FiscalYearStatus.Draft, fiscalYear.Status);
     }
 
     [Fact]

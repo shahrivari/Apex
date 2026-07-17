@@ -50,7 +50,7 @@ public sealed class FiscalYearReadRepository(IGeneralConnectionFactory connectio
         }
         if (fromDate.HasValue)
         {
-            where.Add("end_date >= @FromDate");
+            where.Add("ISNULL(cancellation_date, end_date) >= @FromDate");
             parameters.Add("FromDate", fromDate.Value);
         }
         if (toDate.HasValue)
@@ -90,15 +90,18 @@ public sealed class FiscalYearReadRepository(IGeneralConnectionFactory connectio
             WHERE accounting_book_id = @AccountingBookId
               AND start_date <= @AccountingDate
               AND ISNULL(cancellation_date, end_date) >= @AccountingDate
-              AND (@RequiredStatus IS NULL OR status = @RequiredStatus)
             """,
-            new { AccountingBookId = accountingBookId, AccountingDate = accountingDate, RequiredStatus = requiredStatus },
+            new { AccountingBookId = accountingBookId, AccountingDate = accountingDate },
             cancellationToken: cancellationToken))).AsList();
-        return rows.Count switch
+        var containing = rows.Count switch
         {
             0 => null,
             1 => rows[0],
             _ => throw new InvalidOperationException("More than one fiscal year contains the accounting date.")
         };
+        return containing is not null
+               && (requiredStatus is null || containing.Status == requiredStatus)
+            ? containing
+            : null;
     }
 }

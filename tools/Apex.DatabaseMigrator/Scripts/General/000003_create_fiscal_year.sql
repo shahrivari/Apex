@@ -31,8 +31,7 @@ CREATE TABLE fiscal_year (
             OR (status <> 'CANCELLED' AND cancellation_date IS NULL AND cancelled_at IS NULL)),
     CONSTRAINT ck_fiscal_year_opened
         CHECK ((status = 'DRAFT' AND opened_at IS NULL)
-            OR (status IN ('OPEN', 'CLOSED') AND opened_at IS NOT NULL)
-            OR status = 'CANCELLED')
+            OR (status IN ('OPEN', 'CLOSED', 'CANCELLED') AND opened_at IS NOT NULL))
 );
 
 CREATE INDEX ix_fiscal_year_book_dates

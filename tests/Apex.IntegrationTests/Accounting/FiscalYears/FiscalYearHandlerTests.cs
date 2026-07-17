@@ -1,6 +1,8 @@
 using Apex.Application.Abstractions.Data;
 using Apex.Application.Abstractions.Exceptions;
 using Apex.IntegrationTests.Common;
+using Apex.Modules.Accounting.AccountingBooks.UseCases.ActivateAccountingBook;
+using Apex.Modules.Accounting.AccountingBooks.UseCases.ArchiveAccountingBook;
 using Apex.Modules.Accounting.AccountingBooks.UseCases.CreateAccountingBook;
 using Apex.Modules.Accounting.FiscalYears.Domain;
 using Apex.Modules.Accounting.FiscalYears.Repositories;
@@ -65,6 +67,36 @@ public sealed class FiscalYearHandlerTests(ApexIntegrationTestFixture fixture)
         var connection = await connectionFactory.OpenAsync();
         Assert.Equal(1, await connection.ExecuteScalarAsync<int>(
             "SELECT COUNT(1) FROM fiscal_year WHERE accounting_book_id = @BookId", new { BookId = bookId }));
+    }
+
+    [Fact]
+    public async Task Create_ForArchivedBook_ShouldBeRejected()
+    {
+        await ResetAccountingDatabaseAsync();
+        await using var scope = await CreateScopeAsync();
+        var bookId = await CreateBookAsync(scope, "FY-ARCHIVED", "fy-archived", activate: false);
+        await scope.Services.GetRequiredService<ArchiveAccountingBookHandler>().HandleAsync(bookId);
+
+        var exception = await Assert.ThrowsAsync<BusinessRuleException>(() =>
+            scope.Services.GetRequiredService<CreateFiscalYearHandler>().HandleAsync(
+                Request(bookId, new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31))));
+
+        Assert.Equal(FiscalYearErrors.AccountingBookArchived, exception.ErrorCode);
+    }
+
+    [Fact]
+    public async Task Open_ForNonActiveBook_ShouldBeRejected()
+    {
+        await ResetAccountingDatabaseAsync();
+        await using var scope = await CreateScopeAsync();
+        var bookId = await CreateBookAsync(scope, "FY-DRAFT-BOOK", "fy-draft-book", activate: false);
+        var fiscalYear = await scope.Services.GetRequiredService<CreateFiscalYearHandler>().HandleAsync(
+            Request(bookId, new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31)));
+
+        var exception = await Assert.ThrowsAsync<BusinessRuleException>(() =>
+            scope.Services.GetRequiredService<OpenFiscalYearHandler>().HandleAsync(fiscalYear.Id));
+
+        Assert.Equal(FiscalYearErrors.AccountingBookNotActive, exception.ErrorCode);
     }
 
     [Fact]
@@ -172,6 +204,9 @@ public sealed class FiscalYearHandlerTests(ApexIntegrationTestFixture fixture)
             Request(bookId, new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31)));
         var cancellationDate = new DateOnly(2026, 6, 30);
 
+        await scope.Services.GetRequiredService<OpenFiscalYearHandler>().HandleAsync(first.Id);
+        await scope.Services.GetRequiredService<FinalizeFiscalYearHandler>().HandleAsync(first.Id,
+            new FinalizeFiscalYearRequest { FinalizedThroughDate = cancellationDate });
         await scope.Services.GetRequiredService<CancelFiscalYearHandler>().HandleAsync(first.Id,
             new CancelFiscalYearRequest { CancellationDate = cancellationDate });
         var replacement = await createHandler.HandleAsync(
@@ -189,7 +224,8 @@ public sealed class FiscalYearHandlerTests(ApexIntegrationTestFixture fixture)
         EndDate = endDate
     };
 
-    private static async Task<long> CreateBookAsync(ServiceScopeHandle scope, string code, string ownerId)
+    private static async Task<long> CreateBookAsync(
+        ServiceScopeHandle scope, string code, string ownerId, bool activate = true)
     {
         var result = await scope.Services.GetRequiredService<CreateAccountingBookHandler>().HandleAsync(
             new CreateAccountingBookRequest
@@ -199,6 +235,8 @@ public sealed class FiscalYearHandlerTests(ApexIntegrationTestFixture fixture)
                 OwnerType = "TEST",
                 OwnerId = ownerId
             });
+        if (activate)
+            await scope.Services.GetRequiredService<ActivateAccountingBookHandler>().HandleAsync(result.Id);
         return result.Id;
     }
 }

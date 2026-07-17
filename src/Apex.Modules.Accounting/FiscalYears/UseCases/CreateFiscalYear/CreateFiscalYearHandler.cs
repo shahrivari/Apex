@@ -22,8 +22,12 @@ public sealed class CreateFiscalYearHandler(
         CreateFiscalYearResponse? response = null;
         await transactionRunner.ExecuteAsync(async ct =>
         {
-            if (!await accountingBookRepository.ExistsByIdForUpdateAsync(request.AccountingBookId, ct))
+            var accountingBook = await accountingBookRepository.GetByIdForUpdateAsync(request.AccountingBookId, ct);
+            if (accountingBook is null)
                 throw new NotFoundException("Accounting book was not found.", AccountingBookErrors.AccountingBookNotFound);
+            if (accountingBook.Status == AccountingBookStatus.Archived)
+                throw new BusinessRuleException("A fiscal year cannot be created for an archived accounting book.",
+                    FiscalYearErrors.AccountingBookArchived);
             if (await writeRepository.HasOverlapForUpdateAsync(
                     request.AccountingBookId, request.StartDate, request.EndDate, cancellationToken: ct))
                 throw new ConflictException("The fiscal year dates overlap another fiscal year.", FiscalYearErrors.DatesOverlap);
