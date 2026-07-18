@@ -11,4 +11,7 @@ internal static class ChartOfAccountsErrors
     internal const string CannotBeChanged = "account_cannot_be_changed";
     internal const string AlreadyActive = "account_already_active";
     internal const string AlreadyArchived = "account_already_archived";
+    internal const string InvalidCode = "invalid_account_code";
+    internal const string InvalidName = "invalid_account_name";
+    internal const string InvalidLevel = "invalid_account_level";
 }

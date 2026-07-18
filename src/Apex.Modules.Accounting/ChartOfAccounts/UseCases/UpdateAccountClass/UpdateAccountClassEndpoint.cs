@@ -1,6 +1,18 @@
-using Apex.Application.Abstractions.Data; using Apex.Application.Abstractions.Exceptions; using Apex.Application.Abstractions.Time; using Apex.Modules.Accounting.ChartOfAccounts.Domain; using Apex.Modules.Accounting.ChartOfAccounts.Repositories; using FluentValidation; using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Routing;
+
 namespace Apex.Modules.Accounting.ChartOfAccounts.UseCases.UpdateAccountClass;
-internal sealed record UpdateAccountClassRequest(string Name); internal sealed record UpdateAccountClassResponse(long Id,string Code,string Name,string Status);
-internal sealed class UpdateAccountClassValidator:AbstractValidator<UpdateAccountClassRequest>{public UpdateAccountClassValidator()=>RuleFor(x=>x.Name).NotEmpty().MaximumLength(255);}
-internal sealed class UpdateAccountClassHandler(IGeneralTransactionRunner tx,IAccountClassWriteRepository repo,IClock clock,IValidator<UpdateAccountClassRequest> validator){public async Task<UpdateAccountClassResponse> HandleAsync(long id,UpdateAccountClassRequest request,CancellationToken ct){await validator.ValidateAndThrowAsync(request,ct);UpdateAccountClassResponse? result=null;await tx.ExecuteAsync(async token=>{var value=await repo.GetForUpdateAsync(id,token)??throw new NotFoundException("Account class was not found.",ChartOfAccountsErrors.AccountClassNotFound);value.Rename(request.Name,clock.UtcNow);await repo.UpdateAsync(value,token);result=new(value.Id,value.Code,value.Name,value.Status.ToDatabaseValue());},ct);return result!;}}
-internal static class UpdateAccountClassEndpoint{internal static RouteGroupBuilder MapUpdateAccountClassEndpoint(this RouteGroupBuilder group){group.MapPut("/classes/{id:long}",async(long id,[FromBody]UpdateAccountClassRequest request,[FromServices]UpdateAccountClassHandler handler,CancellationToken ct)=>Results.Ok(await handler.HandleAsync(id,request,ct))).WithName("UpdateAccountClass");return group;}}
+
+internal static class UpdateAccountClassEndpoint
+{
+    internal static RouteGroupBuilder MapUpdateAccountClassEndpoint(this RouteGroupBuilder group)
+    {
+        group.MapPut("/classes/{id:long}", async (long id, [FromBody] UpdateAccountClassRequest request,
+                [FromServices] UpdateAccountClassHandler handler, CancellationToken ct) =>
+                Results.Ok(await handler.HandleAsync(id, request, ct)))
+            .WithName("UpdateAccountClass");
+        return group;
+    }
+}

@@ -4,7 +4,7 @@
 
 An Accounting Book is the top-level accounting boundary for a business owner. It establishes the accounting environment under which fiscal years, accounts, journal entries, balances, and financial reports are organized.
 
-This document defines the business meaning, scope, invariants, lifecycle, and use cases of Accounting Books. Implementation rules are defined separately in `docs/architecture-guide.md`.
+This document defines the business meaning, scope, invariants, lifecycle, and use cases of Accounting Books. Implementation rules are defined separately in `docs/architecture_guide.md`.
 
 ## 2. Scope
 

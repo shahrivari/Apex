@@ -6,7 +6,7 @@ The Chart of Accounts defines the accounting structure used to classify every le
 
 The Chart of Accounts is global and shared by all Accounting Books. An Accounting Book uses the shared chart but does not own or customize it.
 
-This document defines the business meaning, scope, invariants, lifecycle, and use cases of the Chart of Accounts. Implementation rules are defined separately in `docs/architecture-guide.md`.
+This document defines the business meaning, scope, invariants, lifecycle, and use cases of the Chart of Accounts. Implementation rules are defined separately in `docs/architecture_guide.md`.
 
 ## 2. Capability Name
 

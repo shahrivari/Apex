@@ -1,4 +1,21 @@
-using Apex.Application.Abstractions.Data;using Apex.Application.Abstractions.Exceptions;using Apex.Application.Abstractions.Time;using Apex.Modules.Accounting.ChartOfAccounts.Domain;using Apex.Modules.Accounting.ChartOfAccounts.Repositories;using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Routing;
+
 namespace Apex.Modules.Accounting.ChartOfAccounts.UseCases.ReactivateSubsidiaryAccount;
-internal sealed class ReactivateSubsidiaryAccountHandler(IGeneralTransactionRunner tx,IAccountClassWriteRepository classes,IGeneralAccountWriteRepository parents,ISubsidiaryAccountWriteRepository repo,IClock clock){public async Task HandleAsync(long id,CancellationToken ct)=>await tx.ExecuteAsync(async token=>{var v=await repo.GetForUpdateAsync(id,token)??throw new NotFoundException("Subsidiary account was not found.",ChartOfAccountsErrors.SubsidiaryAccountNotFound);var p=await parents.GetForUpdateAsync(v.GeneralAccountId,token)??throw new NotFoundException("General account was not found.",ChartOfAccountsErrors.GeneralAccountNotFound);var root=await classes.GetForUpdateAsync(p.AccountClassId,token)??throw new NotFoundException("Account class was not found.",ChartOfAccountsErrors.AccountClassNotFound);if(p.Status!=AccountStatus.Active||root.Status!=AccountStatus.Active)throw new BusinessRuleException("An ancestor account is archived.",ChartOfAccountsErrors.ParentInactive);v.Reactivate(clock.UtcNow);await repo.UpdateAsync(v,token);},ct);}
-internal static class ReactivateSubsidiaryAccountEndpoint{internal static RouteGroupBuilder MapReactivateSubsidiaryAccountEndpoint(this RouteGroupBuilder g){g.MapPost("/subsidiary-accounts/{id:long}/reactivate",async(long id,[FromServices]ReactivateSubsidiaryAccountHandler h,CancellationToken ct)=>{await h.HandleAsync(id,ct);return Results.NoContent();}).WithName("ReactivateSubsidiaryAccount");return g;}}
+
+internal static class ReactivateSubsidiaryAccountEndpoint
+{
+    internal static RouteGroupBuilder MapReactivateSubsidiaryAccountEndpoint(this RouteGroupBuilder group)
+    {
+        group.MapPost("/subsidiary-accounts/{id:long}/reactivate", async (long id,
+                [FromServices] ReactivateSubsidiaryAccountHandler handler, CancellationToken ct) =>
+            {
+                await handler.HandleAsync(id, ct);
+                return Results.NoContent();
+            })
+            .WithName("ReactivateSubsidiaryAccount");
+        return group;
+    }
+}

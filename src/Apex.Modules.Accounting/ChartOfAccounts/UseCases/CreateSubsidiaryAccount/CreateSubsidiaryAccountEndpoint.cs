@@ -1,6 +1,21 @@
-using Apex.Application.Abstractions.Data; using Apex.Application.Abstractions.Exceptions; using Apex.Application.Abstractions.Ids; using Apex.Application.Abstractions.Time; using Apex.Modules.Accounting.ChartOfAccounts.Domain; using Apex.Modules.Accounting.ChartOfAccounts.Repositories; using FluentValidation; using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Routing;
+
 namespace Apex.Modules.Accounting.ChartOfAccounts.UseCases.CreateSubsidiaryAccount;
-internal sealed record CreateSubsidiaryAccountRequest(long GeneralAccountId,string Code,string Name,AccountNature Nature,DetailAccountType DetailAccountType); internal sealed record CreateSubsidiaryAccountResponse(long Id,long GeneralAccountId,string Code,string Name,string Nature,string DetailAccountType,string Status);
-internal sealed class CreateSubsidiaryAccountValidator:AbstractValidator<CreateSubsidiaryAccountRequest>{public CreateSubsidiaryAccountValidator(){RuleFor(x=>x.GeneralAccountId).GreaterThan(0);RuleFor(x=>x.Code).NotEmpty().MaximumLength(2);RuleFor(x=>x.Name).NotEmpty().MaximumLength(255);RuleFor(x=>x.Nature).IsInEnum();RuleFor(x=>x.DetailAccountType).IsInEnum();}}
-internal sealed class CreateSubsidiaryAccountHandler(IGeneralTransactionRunner tx,IAccountClassWriteRepository classes,IGeneralAccountWriteRepository parents,ISubsidiaryAccountWriteRepository repo,IIdGenerator ids,IClock clock,IValidator<CreateSubsidiaryAccountRequest> validator){public async Task<CreateSubsidiaryAccountResponse> HandleAsync(CreateSubsidiaryAccountRequest request,CancellationToken ct){await validator.ValidateAndThrowAsync(request,ct);CreateSubsidiaryAccountResponse? result=null;await tx.ExecuteAsync(async token=>{var parent=await parents.GetForUpdateAsync(request.GeneralAccountId,token)??throw new NotFoundException("General account was not found.",ChartOfAccountsErrors.GeneralAccountNotFound);var root=await classes.GetForUpdateAsync(parent.AccountClassId,token)??throw new NotFoundException("Account class was not found.",ChartOfAccountsErrors.AccountClassNotFound);if(parent.Status!=AccountStatus.Active||root.Status!=AccountStatus.Active)throw new BusinessRuleException("An ancestor account is archived.",ChartOfAccountsErrors.ParentInactive);var code=request.Code.Trim().ToUpperInvariant();if(await repo.CodeExistsAsync(parent.Id,code,ct:token))throw new ConflictException("Subsidiary account code already exists under the general account.",ChartOfAccountsErrors.CodeAlreadyExists);var value=SubsidiaryAccount.Create(ids.NewId(),parent.Id,code,request.Name,request.Nature,request.DetailAccountType,clock.UtcNow);await repo.InsertAsync(value,token);result=new(value.Id,value.GeneralAccountId,value.Code,value.Name,value.Nature.ToDatabaseValue(),value.DetailAccountType.ToDatabaseValue(),value.Status.ToDatabaseValue());},ct);return result!;}}
-internal static class CreateSubsidiaryAccountEndpoint{internal static RouteGroupBuilder MapCreateSubsidiaryAccountEndpoint(this RouteGroupBuilder group){group.MapPost("/subsidiary-accounts",async([FromBody]CreateSubsidiaryAccountRequest request,[FromServices]CreateSubsidiaryAccountHandler handler,CancellationToken ct)=>{var r=await handler.HandleAsync(request,ct);return Results.Created($"/api/v1/accounting/chart-of-accounts/subsidiary-accounts/{r.Id}",r);}).WithName("CreateSubsidiaryAccount");return group;}}
+
+internal static class CreateSubsidiaryAccountEndpoint
+{
+    internal static RouteGroupBuilder MapCreateSubsidiaryAccountEndpoint(this RouteGroupBuilder group)
+    {
+        group.MapPost("/subsidiary-accounts", async ([FromBody] CreateSubsidiaryAccountRequest request,
+                [FromServices] CreateSubsidiaryAccountHandler handler, CancellationToken ct) =>
+            {
+                var response = await handler.HandleAsync(request, ct);
+                return Results.Created($"/api/v1/accounting/chart-of-accounts/subsidiary-accounts/{response.Id}", response);
+            })
+            .WithName("CreateSubsidiaryAccount");
+        return group;
+    }
+}

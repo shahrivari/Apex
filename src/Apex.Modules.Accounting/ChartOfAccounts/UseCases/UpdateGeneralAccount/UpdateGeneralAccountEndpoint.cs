@@ -1,6 +1,18 @@
-using Apex.Application.Abstractions.Data; using Apex.Application.Abstractions.Exceptions; using Apex.Application.Abstractions.Time; using Apex.Modules.Accounting.ChartOfAccounts.Domain; using Apex.Modules.Accounting.ChartOfAccounts.Repositories; using FluentValidation; using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Routing;
+
 namespace Apex.Modules.Accounting.ChartOfAccounts.UseCases.UpdateGeneralAccount;
-internal sealed record UpdateGeneralAccountRequest(string Name); internal sealed record UpdateGeneralAccountResponse(long Id,long AccountClassId,string Code,string Name,string Nature,string Status);
-internal sealed class UpdateGeneralAccountValidator:AbstractValidator<UpdateGeneralAccountRequest>{public UpdateGeneralAccountValidator()=>RuleFor(x=>x.Name).NotEmpty().MaximumLength(255);}
-internal sealed class UpdateGeneralAccountHandler(IGeneralTransactionRunner tx,IGeneralAccountWriteRepository repo,IClock clock,IValidator<UpdateGeneralAccountRequest> validator){public async Task<UpdateGeneralAccountResponse> HandleAsync(long id,UpdateGeneralAccountRequest request,CancellationToken ct){await validator.ValidateAndThrowAsync(request,ct);UpdateGeneralAccountResponse? result=null;await tx.ExecuteAsync(async token=>{var value=await repo.GetForUpdateAsync(id,token)??throw new NotFoundException("General account was not found.",ChartOfAccountsErrors.GeneralAccountNotFound);value.Rename(request.Name,clock.UtcNow);await repo.UpdateAsync(value,token);result=new(value.Id,value.AccountClassId,value.Code,value.Name,value.Nature.ToDatabaseValue(),value.Status.ToDatabaseValue());},ct);return result!;}}
-internal static class UpdateGeneralAccountEndpoint{internal static RouteGroupBuilder MapUpdateGeneralAccountEndpoint(this RouteGroupBuilder group){group.MapPut("/general-accounts/{id:long}",async(long id,[FromBody]UpdateGeneralAccountRequest request,[FromServices]UpdateGeneralAccountHandler handler,CancellationToken ct)=>Results.Ok(await handler.HandleAsync(id,request,ct))).WithName("UpdateGeneralAccount");return group;}}
+
+internal static class UpdateGeneralAccountEndpoint
+{
+    internal static RouteGroupBuilder MapUpdateGeneralAccountEndpoint(this RouteGroupBuilder group)
+    {
+        group.MapPut("/general-accounts/{id:long}", async (long id, [FromBody] UpdateGeneralAccountRequest request,
+                [FromServices] UpdateGeneralAccountHandler handler, CancellationToken ct) =>
+                Results.Ok(await handler.HandleAsync(id, request, ct)))
+            .WithName("UpdateGeneralAccount");
+        return group;
+    }
+}

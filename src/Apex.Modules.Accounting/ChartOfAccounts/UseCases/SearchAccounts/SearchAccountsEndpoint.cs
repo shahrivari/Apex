@@ -1,6 +1,18 @@
-using Apex.Modules.Accounting.ChartOfAccounts.Domain;using Apex.Modules.Accounting.ChartOfAccounts.Repositories;using FluentValidation;using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Routing;
+
 namespace Apex.Modules.Accounting.ChartOfAccounts.UseCases.SearchAccounts;
-internal sealed record SearchAccountsRequest(AccountLevel? Level,long? ParentId,string? Term,AccountNature? Nature,DetailAccountType? DetailAccountType,AccountStatus? Status,int Page=1,int PageSize=50);internal sealed record SearchAccountItem(long Id,string Level,long? ParentId,string Code,string Name,string? Nature,string? DetailAccountType,string Status);internal sealed record SearchAccountsResponse(IReadOnlyList<SearchAccountItem> Items,int Page,int PageSize);
-internal sealed class SearchAccountsValidator:AbstractValidator<SearchAccountsRequest>{public SearchAccountsValidator(){RuleFor(x=>x.ParentId).GreaterThan(0).When(x=>x.ParentId.HasValue);RuleFor(x=>x.Term).MaximumLength(255);RuleFor(x=>x.Page).GreaterThan(0);RuleFor(x=>x.PageSize).InclusiveBetween(1,100);RuleFor(x=>x.Level).IsInEnum().When(x=>x.Level.HasValue);RuleFor(x=>x.Nature).IsInEnum().When(x=>x.Nature.HasValue);RuleFor(x=>x.DetailAccountType).IsInEnum().When(x=>x.DetailAccountType.HasValue);RuleFor(x=>x.Status).IsInEnum().When(x=>x.Status.HasValue);}}
-internal sealed class SearchAccountsHandler(IAccountClassReadRepository classes,IGeneralAccountReadRepository generals,ISubsidiaryAccountReadRepository subsidiaries,IValidator<SearchAccountsRequest> validator){public async Task<SearchAccountsResponse> HandleAsync(SearchAccountsRequest r,CancellationToken ct){await validator.ValidateAndThrowAsync(r,ct);var all=new List<SearchAccountItem>();var archived=r.Status!=AccountStatus.Active;if(r.Level is null or AccountLevel.AccountClass)all.AddRange((await classes.ListAsync(archived,ct)).Select(x=>new SearchAccountItem(x.Id,"ACCOUNT_CLASS",null,x.Code,x.Name,null,null,x.Status)));if(r.Level is null or AccountLevel.GeneralAccount)all.AddRange((await generals.ListAsync(archived,ct)).Select(x=>new SearchAccountItem(x.Id,"GENERAL_ACCOUNT",x.AccountClassId,x.Code,x.Name,x.Nature,null,x.Status)));if(r.Level is null or AccountLevel.SubsidiaryAccount)all.AddRange((await subsidiaries.ListAsync(archived,ct)).Select(x=>new SearchAccountItem(x.Id,"SUBSIDIARY_ACCOUNT",x.GeneralAccountId,x.Code,x.Name,x.Nature,x.DetailAccountType,x.Status)));IEnumerable<SearchAccountItem> q=all;if(r.ParentId.HasValue)q=q.Where(x=>x.ParentId==r.ParentId);if(!string.IsNullOrWhiteSpace(r.Term)){var term=r.Term.Trim();q=q.Where(x=>x.Code.Contains(term,StringComparison.OrdinalIgnoreCase)||x.Name.Contains(term,StringComparison.OrdinalIgnoreCase));}if(r.Nature.HasValue)q=q.Where(x=>x.Nature==r.Nature.Value.ToDatabaseValue());if(r.DetailAccountType.HasValue)q=q.Where(x=>x.DetailAccountType==r.DetailAccountType.Value.ToDatabaseValue());if(r.Status.HasValue)q=q.Where(x=>x.Status==r.Status.Value.ToDatabaseValue());var items=q.OrderBy(x=>x.Code,StringComparer.Ordinal).ThenBy(x=>x.Id).Skip((r.Page-1)*r.PageSize).Take(r.PageSize).ToList();return new(items,r.Page,r.PageSize);}}
-internal static class SearchAccountsEndpoint{internal static RouteGroupBuilder MapSearchAccountsEndpoint(this RouteGroupBuilder g){g.MapGet("/search",async([AsParameters]SearchAccountsRequest request,[FromServices]SearchAccountsHandler h,CancellationToken ct)=>Results.Ok(await h.HandleAsync(request,ct))).WithName("SearchAccounts");return g;}}
+
+internal static class SearchAccountsEndpoint
+{
+    internal static RouteGroupBuilder MapSearchAccountsEndpoint(this RouteGroupBuilder group)
+    {
+        group.MapGet("/search", async ([AsParameters] SearchAccountsRequest request,
+                [FromServices] SearchAccountsHandler handler, CancellationToken ct) =>
+                Results.Ok(await handler.HandleAsync(request, ct)))
+            .WithName("SearchAccounts");
+        return group;
+    }
+}

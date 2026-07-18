@@ -1,4 +1,21 @@
-using Apex.Application.Abstractions.Data;using Apex.Application.Abstractions.Exceptions;using Apex.Application.Abstractions.Time;using Apex.Modules.Accounting.ChartOfAccounts.Domain;using Apex.Modules.Accounting.ChartOfAccounts.Repositories;using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Routing;
+
 namespace Apex.Modules.Accounting.ChartOfAccounts.UseCases.ReactivateGeneralAccount;
-internal sealed class ReactivateGeneralAccountHandler(IGeneralTransactionRunner tx,IAccountClassWriteRepository parents,IGeneralAccountWriteRepository repo,IClock clock){public async Task HandleAsync(long id,CancellationToken ct)=>await tx.ExecuteAsync(async token=>{var v=await repo.GetForUpdateAsync(id,token)??throw new NotFoundException("General account was not found.",ChartOfAccountsErrors.GeneralAccountNotFound);var p=await parents.GetForUpdateAsync(v.AccountClassId,token)??throw new NotFoundException("Account class was not found.",ChartOfAccountsErrors.AccountClassNotFound);if(p.Status!=AccountStatus.Active)throw new BusinessRuleException("Account class is archived.",ChartOfAccountsErrors.ParentInactive);v.Reactivate(clock.UtcNow);await repo.UpdateAsync(v,token);},ct);}
-internal static class ReactivateGeneralAccountEndpoint{internal static RouteGroupBuilder MapReactivateGeneralAccountEndpoint(this RouteGroupBuilder g){g.MapPost("/general-accounts/{id:long}/reactivate",async(long id,[FromServices]ReactivateGeneralAccountHandler h,CancellationToken ct)=>{await h.HandleAsync(id,ct);return Results.NoContent();}).WithName("ReactivateGeneralAccount");return g;}}
+
+internal static class ReactivateGeneralAccountEndpoint
+{
+    internal static RouteGroupBuilder MapReactivateGeneralAccountEndpoint(this RouteGroupBuilder group)
+    {
+        group.MapPost("/general-accounts/{id:long}/reactivate", async (long id,
+                [FromServices] ReactivateGeneralAccountHandler handler, CancellationToken ct) =>
+            {
+                await handler.HandleAsync(id, ct);
+                return Results.NoContent();
+            })
+            .WithName("ReactivateGeneralAccount");
+        return group;
+    }
+}

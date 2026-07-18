@@ -53,22 +53,22 @@ public sealed class FiscalYear
         FiscalYearStatus status, DateOnly finalizedThroughDate, long nextDocumentNumber,
         DateTime createdAt, DateTime? updatedAt, DateTime? openedAt, DateTime? closedAt,
         DateTime? cancelledAt, DateOnly? cancellationDate) => new()
-    {
-        Id = id,
-        AccountingBookId = accountingBookId,
-        Title = title,
-        StartDate = startDate,
-        EndDate = endDate,
-        Status = status,
-        FinalizedThroughDate = finalizedThroughDate,
-        NextDocumentNumber = nextDocumentNumber,
-        CreatedAt = createdAt,
-        UpdatedAt = updatedAt,
-        OpenedAt = openedAt,
-        ClosedAt = closedAt,
-        CancelledAt = cancelledAt,
-        CancellationDate = cancellationDate
-    };
+        {
+            Id = id,
+            AccountingBookId = accountingBookId,
+            Title = title,
+            StartDate = startDate,
+            EndDate = endDate,
+            Status = status,
+            FinalizedThroughDate = finalizedThroughDate,
+            NextDocumentNumber = nextDocumentNumber,
+            CreatedAt = createdAt,
+            UpdatedAt = updatedAt,
+            OpenedAt = openedAt,
+            ClosedAt = closedAt,
+            CancelledAt = cancelledAt,
+            CancellationDate = cancellationDate
+        };
 
     public void UpdateDraft(string title, DateOnly startDate, DateOnly endDate, DateTime now)
     {

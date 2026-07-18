@@ -1,6 +1,21 @@
-using Apex.Application.Abstractions.Data; using Apex.Application.Abstractions.Exceptions; using Apex.Application.Abstractions.Ids; using Apex.Application.Abstractions.Time; using Apex.Modules.Accounting.ChartOfAccounts.Domain; using Apex.Modules.Accounting.ChartOfAccounts.Repositories; using FluentValidation; using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Routing;
+
 namespace Apex.Modules.Accounting.ChartOfAccounts.UseCases.CreateGeneralAccount;
-internal sealed record CreateGeneralAccountRequest(long AccountClassId,string Code,string Name,AccountNature Nature); internal sealed record CreateGeneralAccountResponse(long Id,long AccountClassId,string Code,string Name,string Nature,string Status);
-internal sealed class CreateGeneralAccountValidator:AbstractValidator<CreateGeneralAccountRequest>{public CreateGeneralAccountValidator(){RuleFor(x=>x.AccountClassId).GreaterThan(0);RuleFor(x=>x.Code).NotEmpty().MaximumLength(2);RuleFor(x=>x.Name).NotEmpty().MaximumLength(255);RuleFor(x=>x.Nature).IsInEnum();}}
-internal sealed class CreateGeneralAccountHandler(IGeneralTransactionRunner tx,IAccountClassWriteRepository parents,IGeneralAccountWriteRepository repo,IIdGenerator ids,IClock clock,IValidator<CreateGeneralAccountRequest> validator){public async Task<CreateGeneralAccountResponse> HandleAsync(CreateGeneralAccountRequest request,CancellationToken ct){await validator.ValidateAndThrowAsync(request,ct);CreateGeneralAccountResponse? result=null;await tx.ExecuteAsync(async token=>{var parent=await parents.GetForUpdateAsync(request.AccountClassId,token)??throw new NotFoundException("Account class was not found.",ChartOfAccountsErrors.AccountClassNotFound);if(parent.Status!=AccountStatus.Active)throw new BusinessRuleException("Account class is archived.",ChartOfAccountsErrors.ParentInactive);var code=request.Code.Trim().ToUpperInvariant();if(await repo.CodeExistsAsync(parent.Id,code,ct:token))throw new ConflictException("General account code already exists under the account class.",ChartOfAccountsErrors.CodeAlreadyExists);var value=GeneralAccount.Create(ids.NewId(),parent.Id,code,request.Name,request.Nature,clock.UtcNow);await repo.InsertAsync(value,token);result=new(value.Id,value.AccountClassId,value.Code,value.Name,value.Nature.ToDatabaseValue(),value.Status.ToDatabaseValue());},ct);return result!;}}
-internal static class CreateGeneralAccountEndpoint{internal static RouteGroupBuilder MapCreateGeneralAccountEndpoint(this RouteGroupBuilder group){group.MapPost("/general-accounts",async([FromBody]CreateGeneralAccountRequest request,[FromServices]CreateGeneralAccountHandler handler,CancellationToken ct)=>{var r=await handler.HandleAsync(request,ct);return Results.Created($"/api/v1/accounting/chart-of-accounts/general-accounts/{r.Id}",r);}).WithName("CreateGeneralAccount");return group;}}
+
+internal static class CreateGeneralAccountEndpoint
+{
+    internal static RouteGroupBuilder MapCreateGeneralAccountEndpoint(this RouteGroupBuilder group)
+    {
+        group.MapPost("/general-accounts", async ([FromBody] CreateGeneralAccountRequest request,
+                [FromServices] CreateGeneralAccountHandler handler, CancellationToken ct) =>
+            {
+                var response = await handler.HandleAsync(request, ct);
+                return Results.Created($"/api/v1/accounting/chart-of-accounts/general-accounts/{response.Id}", response);
+            })
+            .WithName("CreateGeneralAccount");
+        return group;
+    }
+}

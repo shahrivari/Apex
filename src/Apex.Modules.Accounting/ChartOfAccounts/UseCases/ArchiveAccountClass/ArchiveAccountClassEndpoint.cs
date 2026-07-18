@@ -1,4 +1,21 @@
-using Apex.Application.Abstractions.Data;using Apex.Application.Abstractions.Exceptions;using Apex.Application.Abstractions.Time;using Apex.Modules.Accounting.ChartOfAccounts.Domain;using Apex.Modules.Accounting.ChartOfAccounts.Repositories;using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Routing;
+
 namespace Apex.Modules.Accounting.ChartOfAccounts.UseCases.ArchiveAccountClass;
-internal sealed class ArchiveAccountClassHandler(IGeneralTransactionRunner tx,IAccountClassWriteRepository repo,IClock clock){public async Task HandleAsync(long id,CancellationToken ct)=>await tx.ExecuteAsync(async token=>{var v=await repo.GetForUpdateAsync(id,token)??throw new NotFoundException("Account class was not found.",ChartOfAccountsErrors.AccountClassNotFound);if(await repo.HasActiveChildrenAsync(id,token))throw new BusinessRuleException("Account class has active general accounts.",ChartOfAccountsErrors.HasActiveChildren);v.Archive(clock.UtcNow);await repo.UpdateAsync(v,token);},ct);}
-internal static class ArchiveAccountClassEndpoint{internal static RouteGroupBuilder MapArchiveAccountClassEndpoint(this RouteGroupBuilder g){g.MapPost("/classes/{id:long}/archive",async(long id,[FromServices]ArchiveAccountClassHandler h,CancellationToken ct)=>{await h.HandleAsync(id,ct);return Results.NoContent();}).WithName("ArchiveAccountClass");return g;}}
+
+internal static class ArchiveAccountClassEndpoint
+{
+    internal static RouteGroupBuilder MapArchiveAccountClassEndpoint(this RouteGroupBuilder group)
+    {
+        group.MapPost("/classes/{id:long}/archive", async (long id,
+                [FromServices] ArchiveAccountClassHandler handler, CancellationToken ct) =>
+            {
+                await handler.HandleAsync(id, ct);
+                return Results.NoContent();
+            })
+            .WithName("ArchiveAccountClass");
+        return group;
+    }
+}

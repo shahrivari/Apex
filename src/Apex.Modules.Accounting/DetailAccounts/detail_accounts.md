@@ -6,7 +6,7 @@ Detail Accounts provide the final accounting dimension used to identify the spec
 
 The capability maintains a global directory of accounting identities. Every Accounting Book uses the same Detail Account directory.
 
-This document defines the business meaning, scope, invariants, lifecycle, and use cases of Detail Accounts. Implementation rules are defined separately in `docs/architecture-guide.md`.
+This document defines the business meaning, scope, invariants, lifecycle, and use cases of Detail Accounts. Implementation rules are defined separately in `docs/architecture_guide.md`.
 
 ## 2. Capability Model
 

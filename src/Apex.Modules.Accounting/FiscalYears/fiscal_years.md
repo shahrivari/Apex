@@ -4,7 +4,7 @@
 
 A Fiscal Year defines a dated accounting period within an Accounting Book. It determines when accounting activity belongs, whether the period is available for posting, which dates are protected from further change, and the numbering sequence used for accounting documents.
 
-This document defines the business meaning, scope, invariants, lifecycle, and use cases of Fiscal Years. Implementation rules are defined separately in `docs/architecture-guide.md`.
+This document defines the business meaning, scope, invariants, lifecycle, and use cases of Fiscal Years. Implementation rules are defined separately in `docs/architecture_guide.md`.
 
 ## 2. Scope
 

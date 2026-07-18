@@ -1,6 +1,18 @@
-using Apex.Application.Abstractions.Data; using Apex.Application.Abstractions.Exceptions; using Apex.Application.Abstractions.Time; using Apex.Modules.Accounting.ChartOfAccounts.Domain; using Apex.Modules.Accounting.ChartOfAccounts.Repositories; using FluentValidation; using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Routing;
+
 namespace Apex.Modules.Accounting.ChartOfAccounts.UseCases.UpdateSubsidiaryAccount;
-internal sealed record UpdateSubsidiaryAccountRequest(string Name); internal sealed record UpdateSubsidiaryAccountResponse(long Id,long GeneralAccountId,string Code,string Name,string Nature,string DetailAccountType,string Status);
-internal sealed class UpdateSubsidiaryAccountValidator:AbstractValidator<UpdateSubsidiaryAccountRequest>{public UpdateSubsidiaryAccountValidator()=>RuleFor(x=>x.Name).NotEmpty().MaximumLength(255);}
-internal sealed class UpdateSubsidiaryAccountHandler(IGeneralTransactionRunner tx,ISubsidiaryAccountWriteRepository repo,IClock clock,IValidator<UpdateSubsidiaryAccountRequest> validator){public async Task<UpdateSubsidiaryAccountResponse> HandleAsync(long id,UpdateSubsidiaryAccountRequest request,CancellationToken ct){await validator.ValidateAndThrowAsync(request,ct);UpdateSubsidiaryAccountResponse? result=null;await tx.ExecuteAsync(async token=>{var value=await repo.GetForUpdateAsync(id,token)??throw new NotFoundException("Subsidiary account was not found.",ChartOfAccountsErrors.SubsidiaryAccountNotFound);value.Rename(request.Name,clock.UtcNow);await repo.UpdateAsync(value,token);result=new(value.Id,value.GeneralAccountId,value.Code,value.Name,value.Nature.ToDatabaseValue(),value.DetailAccountType.ToDatabaseValue(),value.Status.ToDatabaseValue());},ct);return result!;}}
-internal static class UpdateSubsidiaryAccountEndpoint{internal static RouteGroupBuilder MapUpdateSubsidiaryAccountEndpoint(this RouteGroupBuilder group){group.MapPut("/subsidiary-accounts/{id:long}",async(long id,[FromBody]UpdateSubsidiaryAccountRequest request,[FromServices]UpdateSubsidiaryAccountHandler handler,CancellationToken ct)=>Results.Ok(await handler.HandleAsync(id,request,ct))).WithName("UpdateSubsidiaryAccount");return group;}}
+
+internal static class UpdateSubsidiaryAccountEndpoint
+{
+    internal static RouteGroupBuilder MapUpdateSubsidiaryAccountEndpoint(this RouteGroupBuilder group)
+    {
+        group.MapPut("/subsidiary-accounts/{id:long}", async (long id, [FromBody] UpdateSubsidiaryAccountRequest request,
+                [FromServices] UpdateSubsidiaryAccountHandler handler, CancellationToken ct) =>
+                Results.Ok(await handler.HandleAsync(id, request, ct)))
+            .WithName("UpdateSubsidiaryAccount");
+        return group;
+    }
+}
