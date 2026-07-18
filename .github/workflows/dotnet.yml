@@ -20,9 +20,18 @@ jobs:
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 10.0.x
+    - name: Verify formatting
+      run: |
+        dotnet format whitespace src --folder --exclude '**/obj/**' '**/bin/**' --verify-no-changes
+        dotnet format whitespace tests --folder --exclude '**/obj/**' '**/bin/**' --verify-no-changes
+        dotnet format whitespace tools --folder --exclude '**/obj/**' '**/bin/**' --verify-no-changes
     - name: Restore dependencies
       run: dotnet restore
     - name: Build
       run: dotnet build --no-restore
-    - name: Test
-      run: dotnet test --no-build --verbosity normal
+    - name: Architecture and unit tests
+      run: |
+        dotnet test tests/Apex.ArchitectureTests/Apex.ArchitectureTests.csproj --no-build --verbosity normal
+        dotnet test tests/Apex.UnitTests/Apex.UnitTests.csproj --no-build --verbosity normal
+    - name: Integration tests
+      run: dotnet test tests/Apex.IntegrationTests/Apex.IntegrationTests.csproj --no-build --verbosity normal
