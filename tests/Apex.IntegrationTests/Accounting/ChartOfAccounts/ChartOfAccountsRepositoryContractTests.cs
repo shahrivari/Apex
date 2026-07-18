@@ -41,7 +41,7 @@ public sealed class ChartOfAccountsRepositoryContractTests(ApexIntegrationTestFi
     {
         await ResetAccountingDatabaseAsync(); await using var scope=await CreateScopeAsync(); var s=scope.Services;
         var runner=s.GetRequiredService<IGeneralTransactionRunner>(); var repository=s.GetRequiredService<IAccountClassWriteRepository>();
-        await Assert.ThrowsAsync<InvalidOperationException>(()=>runner.ExecuteAsync(async ct=>{await repository.InsertAsync(AccountClass.Create(100,"ROLLBACK","Rollback",DateTime.UtcNow),ct);throw new InvalidOperationException("force rollback");}));
+        await Assert.ThrowsAsync<InvalidOperationException>(()=>runner.ExecuteAsync(async ct=>{await repository.InsertAsync(AccountClass.Create(100,"RB","Rollback",DateTime.UtcNow),ct);throw new InvalidOperationException("force rollback");}));
         Assert.Null(await s.GetRequiredService<IAccountClassReadRepository>().GetAsync(100));
     }
 }

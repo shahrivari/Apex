@@ -28,16 +28,16 @@ public sealed class ChartOfAccountsHandlerTests(ApexIntegrationTestFixture fixtu
     {
         await ResetAccountingDatabaseAsync(); await using var scope=await CreateScopeAsync(); var s=scope.Services;
         var root=await s.GetRequiredService<CreateAccountClassHandler>().HandleAsync(new("  assets ","Assets"),default);
-        var general=await s.GetRequiredService<CreateGeneralAccountHandler>().HandleAsync(new(root.Id,"cash","Cash",AccountNature.Debtor),default);
-        var leaf=await s.GetRequiredService<CreateSubsidiaryAccountHandler>().HandleAsync(new(general.Id,"bank","Bank",AccountNature.Debtor,DetailAccountType.Bank),default);
-        Assert.Equal("ASSETS",root.Code); Assert.Equal("CASH",general.Code); Assert.Equal("BANK",leaf.Code);
+        var general=await s.GetRequiredService<CreateGeneralAccountHandler>().HandleAsync(new(root.Id,"ca","Cash",AccountNature.Debtor),default);
+        var leaf=await s.GetRequiredService<CreateSubsidiaryAccountHandler>().HandleAsync(new(general.Id,"bk","Bank",AccountNature.Debtor,DetailAccountType.Bank),default);
+        Assert.Equal("ASSETS",root.Code); Assert.Equal("CA",general.Code); Assert.Equal("BK",leaf.Code);
 
         Assert.Equal("Renamed class",(await s.GetRequiredService<UpdateAccountClassHandler>().HandleAsync(root.Id,new("Renamed class"),default)).Name);
         Assert.Equal("Renamed general",(await s.GetRequiredService<UpdateGeneralAccountHandler>().HandleAsync(general.Id,new("Renamed general"),default)).Name);
         Assert.Equal("Renamed leaf",(await s.GetRequiredService<UpdateSubsidiaryAccountHandler>().HandleAsync(leaf.Id,new("Renamed leaf"),default)).Name);
 
         var account=await s.GetRequiredService<GetAccountHandler>().HandleAsync(AccountLevel.SubsidiaryAccount,leaf.Id,default);
-        Assert.Equal(general.Id,account.ParentId); Assert.Equal("BANK",account.Code);
+        Assert.Equal(general.Id,account.ParentId); Assert.Equal("BK",account.Code);
         var tree=await s.GetRequiredService<GetAccountTreeHandler>().HandleAsync(false,default);
         Assert.Equal(leaf.Id,Assert.Single(Assert.Single(Assert.Single(tree).GeneralAccounts).SubsidiaryAccounts).Id);
         var search=await s.GetRequiredService<SearchAccountsHandler>().HandleAsync(new(null,null,"renamed",null,null,null,1,10),default);

@@ -19,9 +19,9 @@ public sealed class ChartOfAccountsHttpTests(ChartOfAccountsHttpFixture fixture)
         await fixture.ResetAsync();
         var root=await CreateAsync("classes",new{code="assets",name="Assets"});
         Assert.Equal(HttpStatusCode.OK,(await _client.PutAsJsonAsync($"{BaseUrl}/classes/{root}",new{name="Assets renamed"})).StatusCode);
-        var general=await CreateAsync("general-accounts",new{accountClassId=root,code="cash",name="Cash",nature=0});
+        var general=await CreateAsync("general-accounts",new{accountClassId=root,code="ca",name="Cash",nature=0});
         Assert.Equal(HttpStatusCode.OK,(await _client.PutAsJsonAsync($"{BaseUrl}/general-accounts/{general}",new{name="Cash renamed"})).StatusCode);
-        var leaf=await CreateAsync("subsidiary-accounts",new{generalAccountId=general,code="bank",name="Bank",nature=0,detailAccountType=1});
+        var leaf=await CreateAsync("subsidiary-accounts",new{generalAccountId=general,code="bk",name="Bank",nature=0,detailAccountType=1});
         Assert.Equal(HttpStatusCode.OK,(await _client.PutAsJsonAsync($"{BaseUrl}/subsidiary-accounts/{leaf}",new{name="Bank renamed"})).StatusCode);
         Assert.Equal(HttpStatusCode.OK,(await _client.GetAsync($"{BaseUrl}/SubsidiaryAccount/{leaf}")).StatusCode);
         var treeResponse=await _client.GetAsync($"{BaseUrl}/tree");

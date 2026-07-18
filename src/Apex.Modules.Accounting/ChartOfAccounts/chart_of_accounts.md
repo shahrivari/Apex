@@ -579,7 +579,7 @@ Migration anomalies must not be silently corrected without an explicit business 
 
 ### Resolved implementation decisions
 
-- Codes are trimmed, normalized to uppercase invariant, and limited to 64 characters at every hierarchy level.
+- Codes are trimmed and normalized to uppercase invariant. General Account (heading) and Subsidiary Account (title) codes are limited to 2 characters. Detail Account codes are limited to 16 characters when Detail Accounts are introduced.
 - Names are trimmed and limited to 255 characters.
 - Deterministic hierarchy ordering is ascending by code and then by permanent ID.
 - Account code, parent, nature, and Detail-Account Type are immutable after creation. This conservative rule applies to every account until accounting-data usage is tracked.

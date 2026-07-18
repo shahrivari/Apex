@@ -11,9 +11,9 @@ public sealed class ChartOfAccountsDomainTests
     public void Create_Should_Normalize_Code_And_Start_Active()
     {
         var accountClass=AccountClass.Create(1,"  assets  "," Assets ",Now);
-        var general=GeneralAccount.Create(2,1," cash "," Cash ",AccountNature.Debtor,Now);
-        var subsidiary=SubsidiaryAccount.Create(3,2," bank "," Bank ",AccountNature.Debtor,DetailAccountType.Bank,Now);
-        Assert.Equal("ASSETS",accountClass.Code); Assert.Equal("CASH",general.Code); Assert.Equal("BANK",subsidiary.Code);
+        var general=GeneralAccount.Create(2,1," ca "," Cash ",AccountNature.Debtor,Now);
+        var subsidiary=SubsidiaryAccount.Create(3,2," bk "," Bank ",AccountNature.Debtor,DetailAccountType.Bank,Now);
+        Assert.Equal("ASSETS",accountClass.Code); Assert.Equal("CA",general.Code); Assert.Equal("BK",subsidiary.Code);
         Assert.Equal(AccountStatus.Active,accountClass.Status); Assert.Equal(AccountStatus.Active,general.Status); Assert.Equal(AccountStatus.Active,subsidiary.Status);
     }
 
@@ -24,6 +24,8 @@ public sealed class ChartOfAccountsDomainTests
     public void Create_Should_Reject_Overlong_Code_And_Name()
     {
         Assert.Throws<BusinessRuleException>(()=>AccountClass.Create(1,new string('A',65),"Name",Now));
+        Assert.Throws<BusinessRuleException>(()=>GeneralAccount.Create(2,1,new string('G',3),"Name",AccountNature.Debtor,Now));
+        Assert.Throws<BusinessRuleException>(()=>SubsidiaryAccount.Create(3,2,new string('S',3),"Name",AccountNature.Debtor,DetailAccountType.None,Now));
         Assert.Throws<BusinessRuleException>(()=>AccountClass.Create(1,"A",new string('N',256),Now));
     }
 
@@ -40,8 +42,8 @@ public sealed class ChartOfAccountsDomainTests
     [Fact]
     public void Rename_Should_Change_Only_Name()
     {
-        var value=SubsidiaryAccount.Create(3,2,"BANK","Old",AccountNature.Debtor,DetailAccountType.Bank,Now);
+        var value=SubsidiaryAccount.Create(3,2,"BK","Old",AccountNature.Debtor,DetailAccountType.Bank,Now);
         value.Rename(" New ",Now.AddMinutes(1));
-        Assert.Equal("New",value.Name); Assert.Equal("BANK",value.Code); Assert.Equal(2,value.GeneralAccountId); Assert.Equal(AccountNature.Debtor,value.Nature); Assert.Equal(DetailAccountType.Bank,value.DetailAccountType);
+        Assert.Equal("New",value.Name); Assert.Equal("BK",value.Code); Assert.Equal(2,value.GeneralAccountId); Assert.Equal(AccountNature.Debtor,value.Nature); Assert.Equal(DetailAccountType.Bank,value.DetailAccountType);
     }
 }
