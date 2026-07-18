@@ -217,12 +217,12 @@ public sealed class FiscalYearHandlerTests(ApexIntegrationTestFixture fixture)
 
     private static CreateFiscalYearRequest Request(
         long bookId, DateOnly startDate, DateOnly endDate, string? title = null) => new()
-    {
-        AccountingBookId = bookId,
-        Title = title ?? startDate.Year.ToString(),
-        StartDate = startDate,
-        EndDate = endDate
-    };
+        {
+            AccountingBookId = bookId,
+            Title = title ?? startDate.Year.ToString(),
+            StartDate = startDate,
+            EndDate = endDate
+        };
 
     private static async Task<long> CreateBookAsync(
         ServiceScopeHandle scope, string code, string ownerId, bool activate = true)

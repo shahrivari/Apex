@@ -6,6 +6,7 @@
     <Project Path="src/Apex.Modules.Accounting/Apex.Modules.Accounting.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Apex.ArchitectureTests/Apex.ArchitectureTests.csproj" />
     <Project Path="tests/Apex.IntegrationTests/Apex.IntegrationTests.csproj" />
     <Project Path="tests/Apex.UnitTests/Apex.UnitTests.csproj" />
   </Folder>
