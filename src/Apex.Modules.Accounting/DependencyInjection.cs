@@ -19,6 +19,8 @@ using Apex.Modules.Accounting.FiscalYears.UseCases.OpenFiscalYear;
 using Apex.Modules.Accounting.FiscalYears.UseCases.ResolveFiscalYear;
 using Apex.Modules.Accounting.FiscalYears.UseCases.UpdateFiscalYear;
 using Apex.Modules.Accounting.ChartOfAccounts.Repositories;
+using Apex.Modules.Accounting.DetailAccounts.Repositories;
+using Apex.Modules.Accounting.DetailAccounts.UseCases.ValidateDetailAccountForPosting;
 using FluentValidation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -40,6 +42,9 @@ public static class DependencyInjection
         services.AddScoped<IGeneralAccountWriteRepository, GeneralAccountWriteRepository>();
         services.AddScoped<ISubsidiaryAccountReadRepository, SubsidiaryAccountReadRepository>();
         services.AddScoped<ISubsidiaryAccountWriteRepository, SubsidiaryAccountWriteRepository>();
+        services.AddScoped<IDetailAccountReadRepository, DetailAccountReadRepository>();
+        services.AddScoped<IDetailAccountWriteRepository, DetailAccountWriteRepository>();
+        services.AddScoped<IDetailAccountPostingValidator, ValidateDetailAccountForPostingHandler>();
 
         // Handlers
         services.AddTransient<CreateAccountingBookHandler>();
@@ -73,6 +78,15 @@ public static class DependencyInjection
         services.AddTransient<ChartOfAccounts.UseCases.GetAccount.GetAccountHandler>();
         services.AddTransient<ChartOfAccounts.UseCases.GetAccountTree.GetAccountTreeHandler>();
         services.AddTransient<ChartOfAccounts.UseCases.SearchAccounts.SearchAccountsHandler>();
+        services.AddTransient<DetailAccounts.UseCases.CreateDetailAccount.CreateDetailAccountHandler>();
+        services.AddTransient<DetailAccounts.UseCases.UpdateDetailAccount.UpdateDetailAccountHandler>();
+        services.AddTransient<DetailAccounts.UseCases.GetDetailAccount.GetDetailAccountHandler>();
+        services.AddTransient<DetailAccounts.UseCases.GetDetailAccountByCode.GetDetailAccountByCodeHandler>();
+        services.AddTransient<DetailAccounts.UseCases.ListDetailAccounts.ListDetailAccountsHandler>();
+        services.AddTransient<DetailAccounts.UseCases.SearchDetailAccountsForPosting.SearchDetailAccountsForPostingHandler>();
+        services.AddTransient<DetailAccounts.UseCases.ArchiveDetailAccount.ArchiveDetailAccountHandler>();
+        services.AddTransient<DetailAccounts.UseCases.ReactivateDetailAccount.ReactivateDetailAccountHandler>();
+        services.AddTransient<DetailAccounts.UseCases.DeleteDetailAccount.DeleteDetailAccountHandler>();
 
         // Validators
         services.AddTransient<IValidator<CreateAccountingBookRequest>, CreateAccountingBookValidator>();
@@ -90,6 +104,10 @@ public static class DependencyInjection
         services.AddTransient<IValidator<ChartOfAccounts.UseCases.CreateSubsidiaryAccount.CreateSubsidiaryAccountRequest>, ChartOfAccounts.UseCases.CreateSubsidiaryAccount.CreateSubsidiaryAccountValidator>();
         services.AddTransient<IValidator<ChartOfAccounts.UseCases.UpdateSubsidiaryAccount.UpdateSubsidiaryAccountRequest>, ChartOfAccounts.UseCases.UpdateSubsidiaryAccount.UpdateSubsidiaryAccountValidator>();
         services.AddTransient<IValidator<ChartOfAccounts.UseCases.SearchAccounts.SearchAccountsRequest>, ChartOfAccounts.UseCases.SearchAccounts.SearchAccountsValidator>();
+        services.AddTransient<IValidator<DetailAccounts.UseCases.CreateDetailAccount.CreateDetailAccountRequest>, DetailAccounts.UseCases.CreateDetailAccount.CreateDetailAccountValidator>();
+        services.AddTransient<IValidator<DetailAccounts.UseCases.UpdateDetailAccount.UpdateDetailAccountRequest>, DetailAccounts.UseCases.UpdateDetailAccount.UpdateDetailAccountValidator>();
+        services.AddTransient<IValidator<DetailAccounts.UseCases.ListDetailAccounts.ListDetailAccountsRequest>, DetailAccounts.UseCases.ListDetailAccounts.ListDetailAccountsValidator>();
+        services.AddTransient<IValidator<DetailAccounts.UseCases.SearchDetailAccountsForPosting.SearchDetailAccountsForPostingRequest>, DetailAccounts.UseCases.SearchDetailAccountsForPosting.SearchDetailAccountsForPostingValidator>();
 
         return services;
     }

@@ -1,5 +1,6 @@
 namespace Apex.IntegrationTests.Common;
 
+using Apex.Application.Abstractions.Data;
 using Apex.DatabaseMigrator.Migrations;
 using Apex.Infrastructure;
 using Apex.Modules.Accounting;
@@ -8,13 +9,13 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Testcontainers.MsSql;
-using Apex.Application.Abstractions.Data;
 
 public sealed class ApexIntegrationTestFixture : IAsyncLifetime
 {
-    private readonly MsSqlContainer _accountingDb = 
-        new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-CU14-ubuntu-22.04").Build();
-    
+    private readonly MsSqlContainer _accountingDb = new MsSqlBuilder(
+        "mcr.microsoft.com/mssql/server:2022-CU14-ubuntu-22.04"
+    ).Build();
+
     public string AccountingConnectionString => _accountingDb.GetConnectionString();
     public string ShardConnectionString { get; private set; } = null!;
 
@@ -57,7 +58,8 @@ public sealed class ApexIntegrationTestFixture : IAsyncLifetime
         await using var connection = CreateAccountingConnection();
         await connection.OpenAsync();
 
-        await connection.ExecuteAsync("""
+        await connection.ExecuteAsync(
+            """
             IF OBJECT_ID('write_transaction_test', 'U') IS NOT NULL
                 DELETE FROM write_transaction_test;
 
@@ -70,6 +72,12 @@ public sealed class ApexIntegrationTestFixture : IAsyncLifetime
             IF OBJECT_ID('fiscal_year', 'U') IS NOT NULL
                 DELETE FROM fiscal_year;
 
+            IF OBJECT_ID('detail_account_retired_code', 'U') IS NOT NULL
+                DELETE FROM detail_account_retired_code;
+
+            IF OBJECT_ID('detail_account', 'U') IS NOT NULL
+                DELETE FROM detail_account;
+
             IF OBJECT_ID('subsidiary_account', 'U') IS NOT NULL
                 DELETE FROM subsidiary_account;
 
@@ -81,7 +89,8 @@ public sealed class ApexIntegrationTestFixture : IAsyncLifetime
 
             IF OBJECT_ID('accounting_book', 'U') IS NOT NULL
                 DELETE FROM accounting_book;
-            """);
+            """
+        );
     }
 
     private IConfiguration BuildConfiguration()
@@ -90,13 +99,11 @@ public sealed class ApexIntegrationTestFixture : IAsyncLifetime
         {
             ["Sharding:GeneralConnectionStringName"] = "GeneralDb",
             ["Sharding:RequiredSchemaVersion"] = "1",
-            ["ConnectionStrings:GeneralDb"] = AccountingConnectionString
-            , ["ConnectionStrings:ShardOne"] = ShardConnectionString
+            ["ConnectionStrings:GeneralDb"] = AccountingConnectionString,
+            ["ConnectionStrings:ShardOne"] = ShardConnectionString,
         };
 
-        return new ConfigurationBuilder()
-            .AddInMemoryCollection(values)
-            .Build();
+        return new ConfigurationBuilder().AddInMemoryCollection(values).Build();
     }
 
     private static void RunMigrations(string connectionString)
@@ -105,18 +112,14 @@ public sealed class ApexIntegrationTestFixture : IAsyncLifetime
 
         if (!result.Successful)
         {
-            throw new InvalidOperationException(
-                "Database migration failed.",
-                result.Error);
+            throw new InvalidOperationException("Database migration failed.", result.Error);
         }
 
         result = DatabaseMigrationRunner.RunTestMigrations(connectionString);
 
         if (!result.Successful)
         {
-            throw new InvalidOperationException(
-                "Test migration failed.",
-                result.Error);
+            throw new InvalidOperationException("Test migration failed.", result.Error);
         }
     }
 

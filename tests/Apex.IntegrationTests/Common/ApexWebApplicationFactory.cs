@@ -17,8 +17,9 @@ namespace Apex.IntegrationTests.Common;
 
 public class ApexWebApplicationFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
-    private readonly MsSqlContainer _sqlContainer =
-        new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-CU14-ubuntu-22.04").Build();
+    private readonly MsSqlContainer _sqlContainer = new MsSqlBuilder(
+        "mcr.microsoft.com/mssql/server:2022-CU14-ubuntu-22.04"
+    ).Build();
 
     public string AccountingConnectionString => _sqlContainer.GetConnectionString();
 
@@ -38,9 +39,16 @@ public class ApexWebApplicationFactory : WebApplicationFactory<Program>, IAsyncL
     {
         await using var connection = new SqlConnection(AccountingConnectionString);
         await connection.OpenAsync();
-        await connection.ExecuteAsync(@"
+        await connection.ExecuteAsync(
+            @"
             IF OBJECT_ID('fiscal_year', 'U') IS NOT NULL
                 DELETE FROM fiscal_year;
+
+            IF OBJECT_ID('detail_account_retired_code', 'U') IS NOT NULL
+                DELETE FROM detail_account_retired_code;
+
+            IF OBJECT_ID('detail_account', 'U') IS NOT NULL
+                DELETE FROM detail_account;
 
             IF OBJECT_ID('subsidiary_account', 'U') IS NOT NULL
                 DELETE FROM subsidiary_account;
@@ -53,31 +61,39 @@ public class ApexWebApplicationFactory : WebApplicationFactory<Program>, IAsyncL
 
             IF OBJECT_ID('accounting_book', 'U') IS NOT NULL
                 DELETE FROM accounting_book;
-        ");
+        "
+        );
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        builder.ConfigureAppConfiguration((_, config) =>
-        {
-            config.AddInMemoryCollection(new Dictionary<string, string?>
+        builder.ConfigureAppConfiguration(
+            (_, config) =>
             {
-                ["Sharding:GeneralConnectionStringName"] = "GeneralDb",
-                ["Sharding:RequiredSchemaVersion"] = "1",
-                ["ConnectionStrings:GeneralDb"] = AccountingConnectionString
-            });
-        });
+                config.AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["Sharding:GeneralConnectionStringName"] = "GeneralDb",
+                        ["Sharding:RequiredSchemaVersion"] = "1",
+                        ["ConnectionStrings:GeneralDb"] = AccountingConnectionString,
+                    }
+                );
+            }
+        );
 
         builder.ConfigureTestServices(services =>
         {
-            services.AddAuthentication(options =>
+            services
+                .AddAuthentication(options =>
                 {
-                    options.DefaultAuthenticateScheme = TestAuthenticationHandler.AuthenticationScheme;
+                    options.DefaultAuthenticateScheme =
+                        TestAuthenticationHandler.AuthenticationScheme;
                     options.DefaultChallengeScheme = TestAuthenticationHandler.AuthenticationScheme;
                 })
                 .AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>(
                     TestAuthenticationHandler.AuthenticationScheme,
-                    _ => { });
+                    _ => { }
+                );
         });
     }
 
@@ -91,20 +107,23 @@ public class ApexWebApplicationFactory : WebApplicationFactory<Program>, IAsyncL
     private sealed class TestAuthenticationHandler(
         IOptionsMonitor<AuthenticationSchemeOptions> options,
         ILoggerFactory logger,
-        UrlEncoder encoder)
-        : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
+        UrlEncoder encoder
+    ) : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
     {
         public const string AuthenticationScheme = "IntegrationTest";
 
         protected override Task<AuthenticateResult> HandleAuthenticateAsync()
         {
-            if (Request.Headers.TryGetValue("X-Test-Unauthenticated", out var value)
-                && string.Equals(value.ToString(), "true", StringComparison.OrdinalIgnoreCase))
+            if (
+                Request.Headers.TryGetValue("X-Test-Unauthenticated", out var value)
+                && string.Equals(value.ToString(), "true", StringComparison.OrdinalIgnoreCase)
+            )
                 return Task.FromResult(AuthenticateResult.NoResult());
 
             var identity = new ClaimsIdentity(
                 [new Claim(ClaimTypes.NameIdentifier, "integration-test-user")],
-                AuthenticationScheme);
+                AuthenticationScheme
+            );
             var principal = new ClaimsPrincipal(identity);
             var ticket = new AuthenticationTicket(principal, AuthenticationScheme);
             return Task.FromResult(AuthenticateResult.Success(ticket));
