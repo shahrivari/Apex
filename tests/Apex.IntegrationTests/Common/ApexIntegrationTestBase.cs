@@ -31,9 +31,19 @@ public abstract class ApexIntegrationTestBase
         return Fixture.CreateAccountingConnection();
     }
 
+    protected SqlConnection CreateShardConnection()
+    {
+        return Fixture.CreateShardConnection();
+    }
+
     protected Task ResetAccountingDatabaseAsync()
     {
         return Fixture.ResetAccountingDatabaseAsync();
+    }
+
+    protected Task ResetShardDatabaseAsync()
+    {
+        return Fixture.ResetShardDatabaseAsync();
     }
 
     protected sealed class ServiceScopeHandle : IAsyncDisposable

@@ -26,6 +26,7 @@ public static class DependencyInjection
             provider.GetRequiredService<SqlShardConnectionFactory>());
         services.AddScoped<IGeneralConnectionFactory, SqlGeneralConnectionFactory>();
         services.AddScoped<IGeneralTransactionRunner, SqlGeneralTransactionRunner>();
+        services.AddSingleton<IShardAssignmentProvisioner, SqlShardAssignmentProvisioner>();
 
         services.AddSingleton<IIdGenerator, TsidIdGenerator>();
         services.AddSingleton<IClock, SystemClock>();

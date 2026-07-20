@@ -1,4 +1,3 @@
-using Apex.Application.Abstractions.Data;
 using Apex.Application.Abstractions.Exceptions;
 using Apex.IntegrationTests.Common;
 using Apex.Modules.Accounting.AccountingBooks.UseCases.ActivateAccountingBook;
@@ -6,14 +5,12 @@ using Apex.Modules.Accounting.AccountingBooks.UseCases.ArchiveAccountingBook;
 using Apex.Modules.Accounting.AccountingBooks.UseCases.CreateAccountingBook;
 using Apex.Modules.Accounting.FiscalYears.Domain;
 using Apex.Modules.Accounting.FiscalYears.Repositories;
-using Apex.Modules.Accounting.FiscalYears.UseCases.AllocateDocumentNumber;
 using Apex.Modules.Accounting.FiscalYears.UseCases.CancelFiscalYear;
 using Apex.Modules.Accounting.FiscalYears.UseCases.CreateFiscalYear;
 using Apex.Modules.Accounting.FiscalYears.UseCases.FinalizeFiscalYear;
 using Apex.Modules.Accounting.FiscalYears.UseCases.GetFiscalYear;
 using Apex.Modules.Accounting.FiscalYears.UseCases.OpenFiscalYear;
 using Apex.Modules.Accounting.FiscalYears.UseCases.ResolveFiscalYear;
-using Dapper;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Apex.IntegrationTests.Accounting.FiscalYears;
@@ -38,7 +35,8 @@ public sealed class FiscalYearHandlerTests(ApexIntegrationTestFixture fixture)
         Assert.Equal("Fiscal 2026", row.Title);
         Assert.Equal(new DateOnly(2025, 12, 31), row.FinalizedThroughDate);
         Assert.Equal("DRAFT", row.Status);
-        Assert.Equal(1, row.NextDocumentNumber);
+        Assert.Equal(1, row.NextReferenceNumber);
+        Assert.Equal(1, row.NextJournalEntryNumber);
         Assert.Null(row.UpdatedAt);
         Assert.Null(row.OpenedAt);
         Assert.Null(row.ClosedAt);
@@ -63,10 +61,9 @@ public sealed class FiscalYearHandlerTests(ApexIntegrationTestFixture fixture)
             Request(bookId, new DateOnly(2026, 12, 1), new DateOnly(2027, 11, 30))));
 
         Assert.Equal(FiscalYearErrors.DatesOverlap, exception.ErrorCode);
-        var connectionFactory = scope.Services.GetRequiredService<IGeneralConnectionFactory>();
-        var connection = await connectionFactory.OpenAsync();
-        Assert.Equal(1, await connection.ExecuteScalarAsync<int>(
-            "SELECT COUNT(1) FROM fiscal_year WHERE accounting_book_id = @BookId", new { BookId = bookId }));
+        var years = await scope.Services.GetRequiredService<IFiscalYearDirectoryRepository>()
+            .ListAsync(bookId, null, null, null, 1, 10);
+        Assert.Single(years.Items);
     }
 
     [Fact]
@@ -100,7 +97,7 @@ public sealed class FiscalYearHandlerTests(ApexIntegrationTestFixture fixture)
     }
 
     [Fact]
-    public async Task OpenFinalizeCancelAndAllocate_ShouldCommitLifecycleAndSequence()
+    public async Task OpenFinalizeAndCancel_ShouldCommitLifecycle()
     {
         await ResetAccountingDatabaseAsync();
         await using var scope = await CreateScopeAsync();
@@ -109,10 +106,6 @@ public sealed class FiscalYearHandlerTests(ApexIntegrationTestFixture fixture)
             Request(bookId, new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31)));
 
         await scope.Services.GetRequiredService<OpenFiscalYearHandler>().HandleAsync(created.Id);
-        var allocator = scope.Services.GetRequiredService<AllocateDocumentNumberHandler>();
-        Assert.Equal(1, await allocator.HandleAsync(created.Id));
-        Assert.Equal(2, await allocator.HandleAsync(created.Id));
-
         var cancellationDate = new DateOnly(2026, 6, 30);
         await scope.Services.GetRequiredService<FinalizeFiscalYearHandler>().HandleAsync(created.Id,
             new FinalizeFiscalYearRequest { FinalizedThroughDate = cancellationDate });
@@ -123,74 +116,10 @@ public sealed class FiscalYearHandlerTests(ApexIntegrationTestFixture fixture)
         Assert.Equal("CANCELLED", result.Status);
         Assert.Equal(cancellationDate, result.FinalizedThroughDate);
         Assert.Equal(cancellationDate, result.CancellationDate);
-        Assert.Equal(3, result.NextDocumentNumber);
+        Assert.Equal(1, result.NextReferenceNumber);
+        Assert.Equal(1, result.NextJournalEntryNumber);
         Assert.NotNull(result.OpenedAt);
         Assert.NotNull(result.CancelledAt);
-    }
-
-    [Fact]
-    public async Task Allocated_Number_Should_Not_Be_Reused_After_Later_Workflow_Rollback()
-    {
-        await ResetAccountingDatabaseAsync();
-        await using var scope = await CreateScopeAsync();
-        var bookId = await CreateBookAsync(scope, "FY-NO-REUSE", "fy-no-reuse");
-        var fiscalYear = await scope.Services.GetRequiredService<CreateFiscalYearHandler>().HandleAsync(
-            Request(bookId, new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31)));
-        await scope.Services.GetRequiredService<OpenFiscalYearHandler>().HandleAsync(fiscalYear.Id);
-        var allocator = scope.Services.GetRequiredService<AllocateDocumentNumberHandler>();
-
-        Assert.Equal(1, await allocator.HandleAsync(fiscalYear.Id));
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            scope.Services.GetRequiredService<IGeneralTransactionRunner>().ExecuteAsync(
-                _ => throw new InvalidOperationException("Simulated document failure.")));
-
-        Assert.Equal(2, await allocator.HandleAsync(fiscalYear.Id));
-    }
-
-    [Fact]
-    public async Task Allocate_Inside_Active_General_Transaction_Should_Be_Rejected_Without_Advancing()
-    {
-        await ResetAccountingDatabaseAsync();
-        await using var scope = await CreateScopeAsync();
-        var bookId = await CreateBookAsync(scope, "FY-AMBIENT", "fy-ambient");
-        var fiscalYear = await scope.Services.GetRequiredService<CreateFiscalYearHandler>().HandleAsync(
-            Request(bookId, new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31)));
-        await scope.Services.GetRequiredService<OpenFiscalYearHandler>().HandleAsync(fiscalYear.Id);
-        var allocator = scope.Services.GetRequiredService<AllocateDocumentNumberHandler>();
-
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            scope.Services.GetRequiredService<IGeneralTransactionRunner>().ExecuteAsync(
-                ct => allocator.HandleAsync(fiscalYear.Id, ct)));
-
-        Assert.Equal(
-            "A standalone general transaction cannot start while another general transaction is active.",
-            exception.Message);
-        Assert.Equal(1, await allocator.HandleAsync(fiscalYear.Id));
-    }
-
-    [Fact]
-    public async Task Concurrent_Allocations_Should_Return_Unique_Increasing_Numbers()
-    {
-        await ResetAccountingDatabaseAsync();
-        long fiscalYearId;
-        await using (var setupScope = await CreateScopeAsync())
-        {
-            var bookId = await CreateBookAsync(setupScope, "FY-CONCURRENT", "fy-concurrent");
-            var fiscalYear = await setupScope.Services.GetRequiredService<CreateFiscalYearHandler>().HandleAsync(
-                Request(bookId, new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31)));
-            fiscalYearId = fiscalYear.Id;
-            await setupScope.Services.GetRequiredService<OpenFiscalYearHandler>().HandleAsync(fiscalYearId);
-        }
-
-        var allocations = Enumerable.Range(0, 10).Select(async _ =>
-        {
-            await using var allocationScope = await CreateScopeAsync();
-            return await allocationScope.Services.GetRequiredService<AllocateDocumentNumberHandler>()
-                .HandleAsync(fiscalYearId);
-        });
-
-        var numbers = await Task.WhenAll(allocations);
-        Assert.Equal(Enumerable.Range(1, 10).Select(x => (long)x), numbers.Order());
     }
 
     [Fact]

@@ -17,7 +17,8 @@ public sealed class FiscalYearDomainTests
         Assert.Equal("2026", fiscalYear.Title);
         Assert.Equal(FiscalYearStatus.Draft, fiscalYear.Status);
         Assert.Equal(new DateOnly(2025, 12, 31), fiscalYear.FinalizedThroughDate);
-        Assert.Equal(1, fiscalYear.NextDocumentNumber);
+        Assert.Equal(1, fiscalYear.NextReferenceNumber);
+        Assert.Equal(1, fiscalYear.NextJournalEntryNumber);
         Assert.Equal(CreatedAt, fiscalYear.CreatedAt);
     }
 

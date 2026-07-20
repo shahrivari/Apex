@@ -127,12 +127,12 @@ public sealed class FiscalYearHttpTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task MissingFiscalYear_ShouldReturnNotFoundProblem()
+    public async Task UnassignedFiscalYear_ShouldReturnRoutingProblem()
     {
         var response = await _client.GetAsync($"{BaseUrl}/99999999");
 
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-        await AssertProblemAsync(response, "fiscal_year_not_found");
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        await AssertProblemAsync(response, "shard_assignment_not_found");
     }
 
     [Fact]
@@ -157,7 +157,7 @@ public sealed class FiscalYearHttpTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task OpenFinalizeAndCancel_ShouldReturnExpectedLifecycleContracts()
+    public async Task DirectFinalize_ShouldBeDisabledUntilJournalCoordinationExists()
     {
         await _factory.ResetAccountingDatabaseAsync();
         var bookId = await CreateBookAsync("FY-HTTP-LIFECYCLE", "fy-http-lifecycle");
@@ -168,12 +168,8 @@ public sealed class FiscalYearHttpTests : IAsyncLifetime
         var openResponse = await _client.PostAsync($"{BaseUrl}/{fiscalYear.Id}/open", null);
         var finalizeResponse = await _client.PostAsJsonAsync($"{BaseUrl}/{fiscalYear.Id}/finalize",
             new FinalizeFiscalYearRequest { FinalizedThroughDate = cancellationDate });
-        var cancelResponse = await _client.PostAsJsonAsync($"{BaseUrl}/{fiscalYear.Id}/cancel",
-            new CancelFiscalYearRequest { CancellationDate = cancellationDate });
-
         Assert.Equal(HttpStatusCode.OK, openResponse.StatusCode);
-        Assert.Equal(HttpStatusCode.OK, finalizeResponse.StatusCode);
-        Assert.Equal(HttpStatusCode.OK, cancelResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, finalizeResponse.StatusCode);
     }
 
     private async Task<long> CreateBookAsync(string code, string ownerId)

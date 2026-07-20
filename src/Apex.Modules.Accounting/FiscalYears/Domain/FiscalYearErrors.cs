@@ -14,6 +14,7 @@ public static class FiscalYearErrors
     public const string CannotBeFinalized = "fiscal_year_cannot_be_finalized";
     public const string CannotBeCancelled = "fiscal_year_cannot_be_cancelled";
     public const string CannotBeClosed = "fiscal_year_cannot_be_closed";
+    public const string CannotAllocateNumber = "fiscal_year_cannot_allocate_number";
     public const string AccountingBookArchived = "fiscal_year_accounting_book_archived";
     public const string AccountingBookNotActive = "fiscal_year_accounting_book_not_active";
 }

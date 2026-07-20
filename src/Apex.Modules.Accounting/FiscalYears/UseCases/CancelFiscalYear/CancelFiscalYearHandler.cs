@@ -8,23 +8,23 @@ using FluentValidation;
 namespace Apex.Modules.Accounting.FiscalYears.UseCases.CancelFiscalYear;
 
 public sealed class CancelFiscalYearHandler(
-    IGeneralTransactionRunner transactionRunner, IFiscalYearWriteRepository writeRepository,
+    IFiscalYearWriteRepository writeRepository, IShardConnectionFactory shardConnectionFactory,
+    IShardKeyFactory<long> shardKeyFactory, FiscalYearDirectorySynchronizer directorySynchronizer,
     IClock clock, IValidator<CancelFiscalYearRequest> validator)
 {
     public async Task<CancelFiscalYearResponse> HandleAsync(long id, CancelFiscalYearRequest request,
         CancellationToken cancellationToken = default)
     {
         await validator.ValidateAndThrowAsync(request, cancellationToken);
-        CancelFiscalYearResponse? response = null;
-        await transactionRunner.ExecuteAsync(async ct =>
-        {
-            var fiscalYear = await writeRepository.GetByIdForUpdateAsync(id, ct)
+        await using var shard = await shardConnectionFactory.OpenAsync(
+            shardKeyFactory.Create(id), beginTransaction: true, cancellationToken);
+        var fiscalYear = await writeRepository.GetByIdForUpdateAsync(shard, id, cancellationToken)
                 ?? throw new NotFoundException("Fiscal year was not found.", FiscalYearErrors.NotFound);
-            fiscalYear.Cancel(request.CancellationDate, clock.UtcNow);
-            await writeRepository.UpdateAsync(fiscalYear, ct);
-            response = new CancelFiscalYearResponse(fiscalYear.Id, fiscalYear.Status.ToDatabaseValue(),
-                fiscalYear.CancellationDate, fiscalYear.CancelledAt);
-        }, cancellationToken);
-        return response!;
+        fiscalYear.Cancel(request.CancellationDate, clock.UtcNow);
+        await writeRepository.UpdateAsync(shard, fiscalYear, cancellationToken);
+        await shard.Transaction!.CommitAsync(cancellationToken);
+        await directorySynchronizer.UpsertBestEffortAsync(fiscalYear, cancellationToken);
+        return new CancelFiscalYearResponse(fiscalYear.Id, fiscalYear.Status.ToDatabaseValue(),
+            fiscalYear.CancellationDate, fiscalYear.CancelledAt);
     }
 }

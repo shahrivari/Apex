@@ -11,7 +11,8 @@ public sealed class GetFiscalYearHandler(IFiscalYearReadRepository readRepositor
         var row = await readRepository.GetByIdAsync(id, cancellationToken)
             ?? throw new NotFoundException("Fiscal year was not found.", FiscalYearErrors.NotFound);
         return new GetFiscalYearResponse(row.Id, row.AccountingBookId, row.Title, row.StartDate, row.EndDate,
-            row.Status, row.FinalizedThroughDate, row.NextDocumentNumber, row.CreatedAt, row.UpdatedAt,
+            row.Status, row.FinalizedThroughDate, row.NextReferenceNumber, row.NextJournalEntryNumber,
+            row.CreatedAt, row.UpdatedAt,
             row.OpenedAt, row.ClosedAt, row.CancelledAt, row.CancellationDate);
     }
 }

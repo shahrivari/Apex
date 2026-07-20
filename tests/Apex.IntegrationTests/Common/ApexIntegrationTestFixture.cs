@@ -30,6 +30,7 @@ public sealed class ApexIntegrationTestFixture : IAsyncLifetime
         Configuration = BuildConfiguration();
 
         RunMigrations(AccountingConnectionString);
+        await SeedShardCatalogAsync();
     }
 
     public async Task DisposeAsync()
@@ -42,6 +43,7 @@ public sealed class ApexIntegrationTestFixture : IAsyncLifetime
         var services = new ServiceCollection();
 
         services.AddSingleton(Configuration);
+        services.AddLogging();
         services.AddInfrastructure(Configuration);
         services.AddAccountingModule(Configuration);
 
@@ -51,6 +53,34 @@ public sealed class ApexIntegrationTestFixture : IAsyncLifetime
     public SqlConnection CreateAccountingConnection()
     {
         return new SqlConnection(AccountingConnectionString);
+    }
+
+    public SqlConnection CreateShardConnection()
+    {
+        return new SqlConnection(ShardConnectionString);
+    }
+
+    public async Task ResetShardDatabaseAsync()
+    {
+        await using var connection = CreateShardConnection();
+        await connection.OpenAsync();
+        await connection.ExecuteAsync(
+            """
+            IF OBJECT_ID('journal_entry_line', 'U') IS NOT NULL
+                DELETE FROM journal_entry_line;
+
+            IF OBJECT_ID('daily_account_turnover', 'U') IS NOT NULL
+                DELETE FROM daily_account_turnover;
+
+            IF OBJECT_ID('daily_account_balance', 'U') IS NOT NULL
+                DELETE FROM daily_account_balance;
+
+            IF OBJECT_ID('journal_entry', 'U') IS NOT NULL
+                DELETE FROM journal_entry;
+
+            IF OBJECT_ID('fiscal_year', 'U') IS NOT NULL
+                DELETE FROM fiscal_year;
+            """);
     }
 
     public async Task ResetAccountingDatabaseAsync()
@@ -69,8 +99,8 @@ public sealed class ApexIntegrationTestFixture : IAsyncLifetime
                 INSERT INTO db_marker(name) VALUES ('ACCOUNTING_DATABASE');
             END
 
-            IF OBJECT_ID('fiscal_year', 'U') IS NOT NULL
-                DELETE FROM fiscal_year;
+            IF OBJECT_ID('fiscal_year_directory', 'U') IS NOT NULL
+                DELETE FROM fiscal_year_directory;
 
             IF OBJECT_ID('detail_account_retired_code', 'U') IS NOT NULL
                 DELETE FROM detail_account_retired_code;
@@ -89,6 +119,9 @@ public sealed class ApexIntegrationTestFixture : IAsyncLifetime
 
             IF OBJECT_ID('accounting_book', 'U') IS NOT NULL
                 DELETE FROM accounting_book;
+
+            IF OBJECT_ID('ShardAssignments', 'U') IS NOT NULL
+                DELETE FROM ShardAssignments WHERE entity_type = 'FiscalYear';
             """
         );
     }
@@ -101,9 +134,22 @@ public sealed class ApexIntegrationTestFixture : IAsyncLifetime
             ["Sharding:RequiredSchemaVersion"] = "1",
             ["ConnectionStrings:GeneralDb"] = AccountingConnectionString,
             ["ConnectionStrings:ShardOne"] = ShardConnectionString,
+            ["ConnectionStrings:AccountingShard01"] = ShardConnectionString,
         };
 
         return new ConfigurationBuilder().AddInMemoryCollection(values).Build();
+    }
+
+    private async Task SeedShardCatalogAsync()
+    {
+        await using var connection = CreateAccountingConnection();
+        await connection.OpenAsync();
+        await connection.ExecuteAsync(
+            """
+            INSERT INTO Shards (id, connection_name, status, schema_version, created_at, modified_at)
+            VALUES ('shard-accounting-01', 'AccountingShard01', 'ACTIVE', '1',
+                    SYSUTCDATETIME(), SYSUTCDATETIME())
+            """);
     }
 
     private static void RunMigrations(string connectionString)

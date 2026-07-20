@@ -1,6 +1,7 @@
 namespace Apex.Api.Middleware;
 
 using Apex.Application.Abstractions.Exceptions;
+using Apex.Application.Abstractions.Data;
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using NanoidDotNet;
@@ -76,6 +77,18 @@ public sealed class GlobalExceptionHandlingMiddleware
         catch (UnauthorizedAccessException exception)
         {
             await HandleUnauthorizedExceptionAsync(context, exception, traceId);
+        }
+        catch (ShardAssignmentNotFoundException exception)
+        {
+            await HandleShardExceptionAsync(context, exception, traceId, "shard_assignment_not_found");
+        }
+        catch (ShardSchemaMismatchException exception)
+        {
+            await HandleShardExceptionAsync(context, exception, traceId, "shard_schema_mismatch");
+        }
+        catch (ShardUnavailableException exception)
+        {
+            await HandleShardExceptionAsync(context, exception, traceId, "shard_unavailable");
         }
         catch (Exception exception)
         {
@@ -163,6 +176,23 @@ public sealed class GlobalExceptionHandlingMiddleware
             ErrorCodes.UnexpectedError,
             traceId);
 
+        await WriteProblemDetailsAsync(context, problemDetails);
+    }
+
+    private async Task HandleShardExceptionAsync(
+        HttpContext context,
+        ShardResolutionException exception,
+        string traceId,
+        string errorCode)
+    {
+        Log(context, exception, LogLevel.Warning, exception.Message, traceId);
+        var problemDetails = CreateProblemDetails(
+            context,
+            StatusCodes.Status503ServiceUnavailable,
+            "Shard unavailable",
+            "The requested accounting partition is temporarily unavailable.",
+            errorCode,
+            traceId);
         await WriteProblemDetailsAsync(context, problemDetails);
     }
 

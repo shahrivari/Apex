@@ -53,11 +53,13 @@ The latest accounting date protected from ordinary creation, modification, or de
 
 All dates on or before this date are finalized. Finalization advances forward and does not move backward through normal business operations.
 
-### Document Number
+### Reference Number and Journal Entry Number
 
-A sequential number allocated within one Fiscal Year. Document numbering restarts at `1` for every Fiscal Year.
+Two independent sequential numbers allocated within one Fiscal Year. Both sequences restart at `1`
+for every Fiscal Year and are advanced by Journal Entry creation.
 
-Allocated numbers may contain gaps. A number that was allocated but not ultimately used is not reused.
+Allocation and Journal Entry insertion share the authoritative shard transaction. A failed creation
+rolls both counters back, while a committed number is never reused.
 
 ### Draft
 
@@ -117,10 +119,10 @@ The following rules must always hold:
 15. The finalized-through date initially equals the day before the start date.
 16. The finalized-through date may advance but may not move backward through normal business operations.
 17. The finalized-through date may not move beyond the effective final date of the Fiscal Year.
-18. Document numbering begins at `1` independently for each Fiscal Year.
-19. A document number is unique within its Fiscal Year.
-20. Document numbers are allocated in increasing order.
-21. Allocated document numbers may have gaps and are never reused.
+18. Reference and Journal Entry numbering each begin at `1` independently for every Fiscal Year.
+19. Each number is unique within its Fiscal Year and number kind.
+20. Both numbers are allocated in increasing order in the Journal Entry creation transaction.
+21. A committed number is never reused.
 22. Closed and cancelled Fiscal Years are terminal.
 23. Deletion is permitted only for an eligible draft Fiscal Year.
 24. Deletion permanently removes the draft definition and is different from cancellation.
@@ -205,7 +207,7 @@ Define a future accounting period for an Accounting Book.
 
 - A new Fiscal Year is created in `DRAFT` status.
 - Its finalized-through date is the day before its start date.
-- Its first available document number is `1`.
+- Its first available Reference Number and Journal Entry Number are both `1`.
 
 #### Business failures
 
@@ -265,7 +267,8 @@ View one Fiscal Year by its permanent identity.
 
 #### Business outcome
 
-The authorized caller receives its identity, Accounting Book association, dates, lifecycle status, finalization boundary, numbering position, and relevant timestamps.
+The authorized caller receives its identity, Accounting Book association, dates, lifecycle status,
+finalization boundary, both authoritative numbering positions, and relevant timestamps.
 
 #### Business failures
 
@@ -337,6 +340,10 @@ Exactly one matching Fiscal Year is returned when one exists and satisfies the r
 
 ### 9.8 Finalize Through Date
 
+The direct HTTP operation is temporarily disabled once Journal Entries are present. Internal
+Accounting workflows may use the handler for setup and controlled orchestration, but public
+finalization must wait for the coordinated Journal Entry numbering and projection workflow.
+
 #### Business intent
 
 Protect completed accounting activity through a specified date.
@@ -366,29 +373,27 @@ For the current phase, finalization is an explicit authorized operator decision 
 
 Finalization cannot be reversed. A correction to finalized accounting data must use an explicit corrective accounting workflow rather than moving the finalized-through date backward.
 
-### 9.9 Allocate Document Number
+### 9.9 Allocate Journal Entry Numbers
 
 #### Business intent
 
-Allocate the next sequential number for an accounting document within a Fiscal Year.
+Allocate the next Reference Number and provisional Journal Entry Number within a Fiscal Year.
 
 This is an internal Accounting operation and is not a public user-facing operation.
 
 #### Business outcome
 
-- The current next number is returned.
-- The next available number advances by one.
+- Both current numbers are returned.
+- Both next available numbers advance by one.
+- Allocation and Journal Entry insertion commit atomically on the Fiscal Year's shard.
 
 #### Business failures
 
 - The Fiscal Year does not exist.
 - The Fiscal Year is not eligible for the document being created.
 
-Allocated numbers are not returned to the sequence after failure or rollback. Gaps are valid and expected.
-
-Document-number allocation is a standalone pre-transaction operation. It commits before the transaction that creates the accounting document begins and must not be invoked while a General Database transaction is already active. A later document failure or rollback does not return the committed number to the sequence.
-
-If allocation itself fails before its transaction commits, no number is returned to the caller. An ambiguous connection or commit failure must not be retried blindly because the caller may not know whether the increment committed.
+A failed Journal Entry transaction rolls the allocation back. Once the transaction commits, neither
+number is reused. An ambiguous commit result must be resolved through the source-idempotency contract.
 
 ### 9.10 Cancel Fiscal Year
 
@@ -468,17 +473,25 @@ Closed and cancelled Fiscal Years are readable under the same Accounting Book re
 - Its accounting date must fall within that Fiscal Year's effective date range.
 - Ordinary documents may be posted only when the Fiscal Year is open.
 - Ordinary accounting activity is prohibited on or before the finalized-through date.
-- Each document receives a number allocated within its Fiscal Year.
-- Document numbers are unique only within the Fiscal Year; the same number may exist in different Fiscal Years.
+- Each Journal Entry receives both numbers allocated within its Fiscal Year.
+- Numbers are unique only within the Fiscal Year and number kind; the same values may exist in different Fiscal Years.
 - Closing and opening documents may require explicit exceptions defined by the future closing workflow.
 
 ## 13. Data Placement and Partitioning
 
-Fiscal Year metadata belongs in the General Database.
+The authoritative Fiscal Year row, including lifecycle state, finalization boundary, and both number
+counters, belongs in the shard selected by Fiscal Year ID. Journal Entries for that Fiscal Year use
+the same shard and transaction boundary.
+
+The General Database contains an eventually consistent `fiscal_year_directory` used only for list,
+date resolution, and book-wide overlap/open checks. Authoritative shard commits are not rolled back
+when best-effort directory synchronization fails; an explicit repair operation rebuilds a directory
+row from its authoritative shard row.
 
 A Fiscal Year is an explicit business partition for accounting data that may be stored in a shard. Shard routing must use the Fiscal Year explicitly and must not be inferred from an accounting document ID or other ambient state.
 
-The physical placement and provisioning of shard storage are infrastructure concerns and are not business behavior of this capability.
+Book-wide overlap and single-open-year checks span independent Fiscal Year shards. The current design
+accepts the narrow race between those directory checks and authoritative shard commits.
 
 ## 14. Stable Business Failures
 

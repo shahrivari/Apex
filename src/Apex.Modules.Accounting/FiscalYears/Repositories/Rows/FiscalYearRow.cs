@@ -9,7 +9,8 @@ public sealed class FiscalYearRow
     public DateOnly EndDate { get; init; }
     public string Status { get; init; } = null!;
     public DateOnly FinalizedThroughDate { get; init; }
-    public long NextDocumentNumber { get; init; }
+    public long NextReferenceNumber { get; init; }
+    public long NextJournalEntryNumber { get; init; }
     public DateTime CreatedAt { get; init; }
     public DateTime? UpdatedAt { get; init; }
     public DateTime? OpenedAt { get; init; }

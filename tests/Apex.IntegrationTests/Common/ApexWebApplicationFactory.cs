@@ -23,10 +23,14 @@ public class ApexWebApplicationFactory : WebApplicationFactory<Program>, IAsyncL
 
     public string AccountingConnectionString => _sqlContainer.GetConnectionString();
 
+    public string ShardConnectionString { get; private set; } = null!;
+
     public async Task InitializeAsync()
     {
         await _sqlContainer.StartAsync();
         RunMigrations();
+        ShardConnectionString = await CreateShardDatabaseAsync();
+        await SeedShardCatalogAsync();
     }
 
     public new async Task DisposeAsync()
@@ -41,8 +45,8 @@ public class ApexWebApplicationFactory : WebApplicationFactory<Program>, IAsyncL
         await connection.OpenAsync();
         await connection.ExecuteAsync(
             @"
-            IF OBJECT_ID('fiscal_year', 'U') IS NOT NULL
-                DELETE FROM fiscal_year;
+            IF OBJECT_ID('fiscal_year_directory', 'U') IS NOT NULL
+                DELETE FROM fiscal_year_directory;
 
             IF OBJECT_ID('detail_account_retired_code', 'U') IS NOT NULL
                 DELETE FROM detail_account_retired_code;
@@ -61,6 +65,33 @@ public class ApexWebApplicationFactory : WebApplicationFactory<Program>, IAsyncL
 
             IF OBJECT_ID('accounting_book', 'U') IS NOT NULL
                 DELETE FROM accounting_book;
+
+            IF OBJECT_ID('ShardAssignments', 'U') IS NOT NULL
+                DELETE FROM ShardAssignments WHERE entity_type = 'FiscalYear';
+        "
+        );
+    }
+
+    public async Task ResetShardDatabaseAsync()
+    {
+        await using var connection = new SqlConnection(ShardConnectionString);
+        await connection.OpenAsync();
+        await connection.ExecuteAsync(
+            @"
+            IF OBJECT_ID('journal_entry_line', 'U') IS NOT NULL
+                DELETE FROM journal_entry_line;
+
+            IF OBJECT_ID('daily_account_turnover', 'U') IS NOT NULL
+                DELETE FROM daily_account_turnover;
+
+            IF OBJECT_ID('daily_account_balance', 'U') IS NOT NULL
+                DELETE FROM daily_account_balance;
+
+            IF OBJECT_ID('journal_entry', 'U') IS NOT NULL
+                DELETE FROM journal_entry;
+
+            IF OBJECT_ID('fiscal_year', 'U') IS NOT NULL
+                DELETE FROM fiscal_year;
         "
         );
     }
@@ -76,6 +107,7 @@ public class ApexWebApplicationFactory : WebApplicationFactory<Program>, IAsyncL
                         ["Sharding:GeneralConnectionStringName"] = "GeneralDb",
                         ["Sharding:RequiredSchemaVersion"] = "1",
                         ["ConnectionStrings:GeneralDb"] = AccountingConnectionString,
+                        ["ConnectionStrings:AccountingShard01"] = ShardConnectionString,
                     }
                 );
             }
@@ -102,6 +134,38 @@ public class ApexWebApplicationFactory : WebApplicationFactory<Program>, IAsyncL
         var result = DatabaseMigrationRunner.RunGeneralMigrations(AccountingConnectionString);
         if (!result.Successful)
             throw new InvalidOperationException("Database migration failed.", result.Error);
+    }
+
+    private async Task<string> CreateShardDatabaseAsync()
+    {
+        var builder = new SqlConnectionStringBuilder(AccountingConnectionString)
+        {
+            InitialCatalog = "ApexShardOne"
+        };
+
+        await using (var connection = new SqlConnection(AccountingConnectionString))
+        {
+            await connection.OpenAsync();
+            await connection.ExecuteAsync("CREATE DATABASE [ApexShardOne]");
+        }
+
+        var connectionString = builder.ConnectionString;
+        var result = DatabaseMigrationRunner.RunShardMigrations(connectionString);
+        if (!result.Successful)
+            throw new InvalidOperationException("Shard migration failed.", result.Error);
+        return connectionString;
+    }
+
+    private async Task SeedShardCatalogAsync()
+    {
+        await using var connection = new SqlConnection(AccountingConnectionString);
+        await connection.OpenAsync();
+        await connection.ExecuteAsync(
+            """
+            INSERT INTO Shards (id, connection_name, status, schema_version, created_at, modified_at)
+            VALUES ('shard-accounting-01', 'AccountingShard01', 'ACTIVE', '1',
+                    SYSUTCDATETIME(), SYSUTCDATETIME())
+            """);
     }
 
     private sealed class TestAuthenticationHandler(

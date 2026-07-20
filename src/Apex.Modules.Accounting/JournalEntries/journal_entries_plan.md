@@ -1,0 +1,76 @@
+# Journal Entries — Implementation Plan & Status
+
+Status of the Journal Entries capability, delivered in verified increments. The normative
+requirements live in `journal_entries.md`; this file tracks execution progress.
+
+Last updated: 2026-07-20.
+
+## Key architectural decisions (locked)
+
+- **Sharded by fiscal year**: `ShardKey("FiscalYear", fiscalYearId)`. Reads require the
+  `fiscalYearId` to route (e.g. `GET /{fiscalYearId}/{id}`). First entity in the codebase to use
+  the sharding infrastructure.
+- **Fiscal Year is authoritative in the shard**: its lifecycle/finalization state and both number
+  counters are co-located with Journal Entries. Draft creation allocates Reference Number and
+  provisional Journal Entry Number in the same transaction that inserts the entry.
+- **General discovery directory**: `fiscal_year_directory` is an eventually consistent list/date
+  resolution index. Synchronization is synchronous best-effort and an explicit repair endpoint can
+  rebuild a row after failure.
+- **Projections are shard-resident** so posting + projection updates commit atomically.
+- **Shard assignments** are provisioned lazily on first use (`IShardAssignmentProvisioner`);
+  physical shard catalog entries are operational configuration, and tests seed their own catalog.
+
+## Done
+
+### Increment 1 — Foundation + draft lifecycle ✅
+- Fiscal Year shard routing, authoritative repository, and General discovery directory.
+- ChartOfAccounts `IAccountPathResolver` (public account-code-path resolution).
+- Sharded domain (`JournalEntry`, `JournalEntryLine`, enums, errors) + shard tables
+  (`Scripts/Shard/000001`) + shard-key factory + shard read/write repositories.
+- Draft use cases: create, get (id / reference# / journal-entry#), search, update header,
+  append lines, replace lines, delete.
+- Tests: domain unit + shard repository-contract + handler + HTTP integration (all green).
+
+### Increment 2 — Posting + projections + idempotency ✅
+- `PostJournalEntry` with full revalidation (draft, fiscal year open/not-finalized, account paths
+  exist + eligible, detail accounts, ≥2 lines, debit = credit); atomic DRAFT→POSTED.
+- Shard projections `daily_account_turnover` + `daily_account_balance` (`Scripts/Shard/000002`),
+  updated atomically with posting; FINANCIAL only, statistical excluded.
+- Source-Reference idempotency on create (equivalent replay returns existing; divergent → conflict).
+- Tests: domain `Post` + posting/projection/statistical/idempotency integration (all green).
+
+## Next
+
+### Increment 3 — Reversal + daily finalization
+- **Reverse posted entry** (§11.7): new linked entry, same book/balance-effect, every line copied
+  with debit/credit swapped; set `ReversalOfReferenceNumber` / `ReversedByReferenceNumber`; at most
+  one effective reversal; reversal posted atomically and applies opposite projection effects on its
+  own accounting date.
+- **Finalize accounting day** (§11.10): deterministically order posted entries in the unfinalized
+  tail, reassign provisional Journal Entry Numbers, freeze numbers through the target date, advance
+  the fiscal year's Finalized-Through Date; reject if any draft exists on/before the target date.
+  Atomic and irreversible.
+- Renumbering must preserve uniqueness throughout the transaction (no transient duplicate leaks).
+- Concurrency: finalization serializes with create/edit/post/delete/reverse for the same fiscal
+  year.
+
+### Increment 4 — Reporting + reconciliation
+- **Rebuild** projections from posted entries (full fiscal year or from an unfinalized date) into
+  replacement data; **reconcile** projections vs. source entries and report drift without mutating
+  source. Consider replacing the sparse balance projection with dense/checkpoint storage here.
+- **Aggregate report queries** served by projections: trial balance (opening/period/closing),
+  balance-as-of-date, Document-Type-filtered turnover, cross-fiscal-year period turnover.
+- **Transaction-detail queries** read from entries + lines: general ledger, journal report,
+  drill-down, audit/reversal history.
+
+## Known limitations to revisit
+
+- Source-Reference uniqueness is intentionally scoped to one Fiscal Year.
+- Reversals are restricted to the original Fiscal Year, so reversal posting never crosses shards.
+- Operation-specific authorization and Accounting-Book ownership authorization are deferred.
+- General master-data eligibility is validated as a snapshot before the shard commit; the narrow
+  cross-database race is accepted for the current phase.
+- `daily_account_balance` uses sparse per-date deltas (closing computed on read); dense/checkpoint
+  optimization deferred to Increment 4.
+- Shard assignment uses a single lowest-id active shard; a balanced provisioning workflow is future
+  work.

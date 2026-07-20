@@ -8,7 +8,7 @@ using Apex.Modules.Accounting.AccountingBooks.UseCases.ListAccountingBooks;
 using Apex.Modules.Accounting.AccountingBooks.Repositories;
 using Apex.Modules.Accounting.AccountingBooks.UseCases.SuspendAccountingBook;
 using Apex.Modules.Accounting.FiscalYears.Repositories;
-using Apex.Modules.Accounting.FiscalYears.UseCases.AllocateDocumentNumber;
+using Apex.Modules.Accounting.FiscalYears.UseCases;
 using Apex.Modules.Accounting.FiscalYears.UseCases.CancelFiscalYear;
 using Apex.Modules.Accounting.FiscalYears.UseCases.CreateFiscalYear;
 using Apex.Modules.Accounting.FiscalYears.UseCases.DeleteFiscalYear;
@@ -18,9 +18,21 @@ using Apex.Modules.Accounting.FiscalYears.UseCases.ListFiscalYears;
 using Apex.Modules.Accounting.FiscalYears.UseCases.OpenFiscalYear;
 using Apex.Modules.Accounting.FiscalYears.UseCases.ResolveFiscalYear;
 using Apex.Modules.Accounting.FiscalYears.UseCases.UpdateFiscalYear;
+using Apex.Application.Abstractions.Data;
 using Apex.Modules.Accounting.ChartOfAccounts.Repositories;
+using Apex.Modules.Accounting.ChartOfAccounts.UseCases.ResolveAccountPath;
 using Apex.Modules.Accounting.DetailAccounts.Repositories;
 using Apex.Modules.Accounting.DetailAccounts.UseCases.ValidateDetailAccountForPosting;
+using Apex.Modules.Accounting.JournalEntries.Repositories;
+using Apex.Modules.Accounting.JournalEntries.UseCases;
+using Apex.Modules.Accounting.JournalEntries.UseCases.AppendDraftLines;
+using Apex.Modules.Accounting.JournalEntries.UseCases.CreateDraftJournalEntry;
+using Apex.Modules.Accounting.JournalEntries.UseCases.DeleteDraftJournalEntry;
+using Apex.Modules.Accounting.JournalEntries.UseCases.GetJournalEntry;
+using Apex.Modules.Accounting.JournalEntries.UseCases.PostJournalEntry;
+using Apex.Modules.Accounting.JournalEntries.UseCases.ReplaceDraftLines;
+using Apex.Modules.Accounting.JournalEntries.UseCases.SearchJournalEntries;
+using Apex.Modules.Accounting.JournalEntries.UseCases.UpdateDraftJournalEntry;
 using FluentValidation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -36,6 +48,7 @@ public static class DependencyInjection
         services.AddScoped<IAccountingBookWriteRepository, AccountingBookWriteRepository>();
         services.AddScoped<IFiscalYearReadRepository, FiscalYearReadRepository>();
         services.AddScoped<IFiscalYearWriteRepository, FiscalYearWriteRepository>();
+        services.AddScoped<IFiscalYearDirectoryRepository, FiscalYearDirectoryRepository>();
         services.AddScoped<IAccountClassReadRepository, AccountClassReadRepository>();
         services.AddScoped<IAccountClassWriteRepository, AccountClassWriteRepository>();
         services.AddScoped<IGeneralAccountReadRepository, GeneralAccountReadRepository>();
@@ -45,6 +58,13 @@ public static class DependencyInjection
         services.AddScoped<IDetailAccountReadRepository, DetailAccountReadRepository>();
         services.AddScoped<IDetailAccountWriteRepository, DetailAccountWriteRepository>();
         services.AddScoped<IDetailAccountPostingValidator, ValidateDetailAccountForPostingHandler>();
+        services.AddScoped<IAccountPathReadRepository, AccountPathReadRepository>();
+        services.AddScoped<IAccountPathResolver, ResolveAccountPathHandler>();
+        services.AddScoped<IJournalEntryReadRepository, JournalEntryReadRepository>();
+        services.AddScoped<IJournalEntryWriteRepository, JournalEntryWriteRepository>();
+        services.AddScoped<IJournalEntryProjectionReadRepository, JournalEntryProjectionReadRepository>();
+        services.AddScoped<IJournalEntryProjectionWriteRepository, JournalEntryProjectionWriteRepository>();
+        services.AddSingleton<IShardKeyFactory<long>, FiscalYearShardKeyFactory>();
 
         // Handlers
         services.AddTransient<CreateAccountingBookHandler>();
@@ -62,7 +82,8 @@ public static class DependencyInjection
         services.AddTransient<ResolveFiscalYearHandler>();
         services.AddTransient<FinalizeFiscalYearHandler>();
         services.AddTransient<CancelFiscalYearHandler>();
-        services.AddTransient<AllocateDocumentNumberHandler>();
+        services.AddTransient<FiscalYearDirectorySynchronizer>();
+        services.AddTransient<FiscalYears.UseCases.RepairFiscalYearDirectory.RepairFiscalYearDirectoryHandler>();
         services.AddTransient<ChartOfAccounts.UseCases.CreateAccountClass.CreateAccountClassHandler>();
         services.AddTransient<ChartOfAccounts.UseCases.UpdateAccountClass.UpdateAccountClassHandler>();
         services.AddTransient<ChartOfAccounts.UseCases.ArchiveAccountClass.ArchiveAccountClassHandler>();
@@ -87,6 +108,16 @@ public static class DependencyInjection
         services.AddTransient<DetailAccounts.UseCases.ArchiveDetailAccount.ArchiveDetailAccountHandler>();
         services.AddTransient<DetailAccounts.UseCases.ReactivateDetailAccount.ReactivateDetailAccountHandler>();
         services.AddTransient<DetailAccounts.UseCases.DeleteDetailAccount.DeleteDetailAccountHandler>();
+        services.AddTransient<JournalEntryLineAssembler>();
+        services.AddTransient<JournalEntryActivityValidator>();
+        services.AddTransient<CreateDraftJournalEntryHandler>();
+        services.AddTransient<UpdateDraftJournalEntryHandler>();
+        services.AddTransient<AppendDraftLinesHandler>();
+        services.AddTransient<ReplaceDraftLinesHandler>();
+        services.AddTransient<DeleteDraftJournalEntryHandler>();
+        services.AddTransient<GetJournalEntryHandler>();
+        services.AddTransient<SearchJournalEntriesHandler>();
+        services.AddTransient<PostJournalEntryHandler>();
 
         // Validators
         services.AddTransient<IValidator<CreateAccountingBookRequest>, CreateAccountingBookValidator>();
@@ -108,6 +139,11 @@ public static class DependencyInjection
         services.AddTransient<IValidator<DetailAccounts.UseCases.UpdateDetailAccount.UpdateDetailAccountRequest>, DetailAccounts.UseCases.UpdateDetailAccount.UpdateDetailAccountValidator>();
         services.AddTransient<IValidator<DetailAccounts.UseCases.ListDetailAccounts.ListDetailAccountsRequest>, DetailAccounts.UseCases.ListDetailAccounts.ListDetailAccountsValidator>();
         services.AddTransient<IValidator<DetailAccounts.UseCases.SearchDetailAccountsForPosting.SearchDetailAccountsForPostingRequest>, DetailAccounts.UseCases.SearchDetailAccountsForPosting.SearchDetailAccountsForPostingValidator>();
+        services.AddTransient<IValidator<CreateDraftJournalEntryRequest>, CreateDraftJournalEntryValidator>();
+        services.AddTransient<IValidator<UpdateDraftJournalEntryRequest>, UpdateDraftJournalEntryValidator>();
+        services.AddTransient<IValidator<AppendDraftLinesRequest>, AppendDraftLinesValidator>();
+        services.AddTransient<IValidator<ReplaceDraftLinesRequest>, ReplaceDraftLinesValidator>();
+        services.AddTransient<IValidator<SearchJournalEntriesRequest>, SearchJournalEntriesValidator>();
 
         return services;
     }

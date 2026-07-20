@@ -6,16 +6,18 @@ using Apex.Modules.Accounting.FiscalYears.Repositories;
 namespace Apex.Modules.Accounting.FiscalYears.UseCases.DeleteFiscalYear;
 
 public sealed class DeleteFiscalYearHandler(
-    IGeneralTransactionRunner transactionRunner, IFiscalYearWriteRepository writeRepository)
+    IFiscalYearWriteRepository writeRepository, IShardConnectionFactory shardConnectionFactory,
+    IShardKeyFactory<long> shardKeyFactory, FiscalYearDirectorySynchronizer directorySynchronizer)
 {
     public async Task HandleAsync(long id, CancellationToken cancellationToken = default)
     {
-        await transactionRunner.ExecuteAsync(async ct =>
-        {
-            var fiscalYear = await writeRepository.GetByIdForUpdateAsync(id, ct)
+        await using var shard = await shardConnectionFactory.OpenAsync(
+            shardKeyFactory.Create(id), beginTransaction: true, cancellationToken);
+        var fiscalYear = await writeRepository.GetByIdForUpdateAsync(shard, id, cancellationToken)
                 ?? throw new NotFoundException("Fiscal year was not found.", FiscalYearErrors.NotFound);
-            fiscalYear.EnsureCanDelete();
-            await writeRepository.DeleteAsync(id, ct);
-        }, cancellationToken);
+        fiscalYear.EnsureCanDelete();
+        await writeRepository.DeleteAsync(shard, id, cancellationToken);
+        await shard.Transaction!.CommitAsync(cancellationToken);
+        await directorySynchronizer.DeleteBestEffortAsync(id, cancellationToken);
     }
 }

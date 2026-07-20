@@ -11,7 +11,8 @@ public sealed class FiscalYear
     public DateOnly EndDate { get; private set; }
     public FiscalYearStatus Status { get; private set; }
     public DateOnly FinalizedThroughDate { get; private set; }
-    public long NextDocumentNumber { get; private set; }
+    public long NextReferenceNumber { get; private set; }
+    public long NextJournalEntryNumber { get; private set; }
     public DateTime CreatedAt { get; private init; }
     public DateTime? UpdatedAt { get; private set; }
     public DateTime? OpenedAt { get; private set; }
@@ -43,14 +44,16 @@ public sealed class FiscalYear
             EndDate = endDate,
             Status = FiscalYearStatus.Draft,
             FinalizedThroughDate = startDate.AddDays(-1),
-            NextDocumentNumber = 1,
+            NextReferenceNumber = 1,
+            NextJournalEntryNumber = 1,
             CreatedAt = createdAt
         };
     }
 
     internal static FiscalYear Rehydrate(
         long id, long accountingBookId, string title, DateOnly startDate, DateOnly endDate,
-        FiscalYearStatus status, DateOnly finalizedThroughDate, long nextDocumentNumber,
+        FiscalYearStatus status, DateOnly finalizedThroughDate, long nextReferenceNumber,
+        long nextJournalEntryNumber,
         DateTime createdAt, DateTime? updatedAt, DateTime? openedAt, DateTime? closedAt,
         DateTime? cancelledAt, DateOnly? cancellationDate) => new()
         {
@@ -61,7 +64,8 @@ public sealed class FiscalYear
             EndDate = endDate,
             Status = status,
             FinalizedThroughDate = finalizedThroughDate,
-            NextDocumentNumber = nextDocumentNumber,
+            NextReferenceNumber = nextReferenceNumber,
+            NextJournalEntryNumber = nextJournalEntryNumber,
             CreatedAt = createdAt,
             UpdatedAt = updatedAt,
             OpenedAt = openedAt,
@@ -69,6 +73,18 @@ public sealed class FiscalYear
             CancelledAt = cancelledAt,
             CancellationDate = cancellationDate
         };
+
+    public (long ReferenceNumber, long JournalEntryNumber) AllocateJournalEntryNumbers()
+    {
+        if (Status != FiscalYearStatus.Open
+            || NextReferenceNumber == long.MaxValue
+            || NextJournalEntryNumber == long.MaxValue)
+            throw new BusinessRuleException(
+                "The fiscal year cannot allocate journal entry numbers.",
+                FiscalYearErrors.CannotAllocateNumber);
+
+        return (NextReferenceNumber++, NextJournalEntryNumber++);
+    }
 
     public void UpdateDraft(string title, DateOnly startDate, DateOnly endDate, DateTime now)
     {
