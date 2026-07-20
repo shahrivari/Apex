@@ -6,7 +6,7 @@ Journal Entries record the authoritative financial and statistical accounting ac
 
 Each Journal Entry contains an ordered collection of debit and credit lines. Posted Journal Entries and their lines are the only source of truth for ledger activity. Daily reporting projections accelerate balances and reports but never replace, amend, or become authoritative over the posted Journal Entries.
 
-This document defines the business meaning, scope, invariants, lifecycle, numbering, posting, reversal, daily finalization, reporting projections, and required use cases of Journal Entries. General implementation rules are defined separately in `docs/architecture_guide.md`, `docs/persistency_design.md`, and `docs/integration_testing_guide.md`.
+This document defines the business meaning, scope, invariants, lifecycle, numbering, posting, reversal, daily finalization, reporting projections, and required use cases of Journal Entries. General implementation rules are defined separately in `docs/architecture_guide.md`, `docs/persistency_design.md`, and `docs/integration_testing_guide.md`. Module-level data-placement, transaction, consistency, reversal, and reporting decisions are recorded in [`../ArchitectureDecisions/README.md`](../ArchitectureDecisions/README.md).
 
 ## 2. Scope
 

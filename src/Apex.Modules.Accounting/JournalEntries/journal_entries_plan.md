@@ -7,6 +7,9 @@ Last updated: 2026-07-20.
 
 ## Key architectural decisions (locked)
 
+The authoritative rationale and consequences for these decisions are recorded in the Accounting
+module's [`ArchitectureDecisions`](../ArchitectureDecisions/README.md) directory.
+
 - **Sharded by fiscal year**: `ShardKey("FiscalYear", fiscalYearId)`. Reads require the
   `fiscalYearId` to route (e.g. `GET /{fiscalYearId}/{id}`). First entity in the codebase to use
   the sharding infrastructure.
