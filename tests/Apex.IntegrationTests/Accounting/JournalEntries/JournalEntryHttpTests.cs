@@ -8,6 +8,7 @@ using Apex.Modules.Accounting.AccountingBooks.UseCases.CreateAccountingBook;
 using Apex.Modules.Accounting.FiscalYears.UseCases.CreateFiscalYear;
 using Apex.Modules.Accounting.JournalEntries.UseCases;
 using Apex.Modules.Accounting.JournalEntries.UseCases.CreateDraftJournalEntry;
+using Apex.Modules.Accounting.JournalEntries.UseCases.ReverseJournalEntry;
 
 namespace Apex.IntegrationTests.Accounting.JournalEntries;
 
@@ -48,6 +49,40 @@ public sealed class JournalEntryHttpTests : IAsyncLifetime
         var response = await _client.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UnauthenticatedReversal_ShouldReturn401()
+    {
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post, $"{BaseUrl}/1/by-reference/1/reverse")
+        {
+            Content = JsonContent.Create(new ReverseJournalEntryRequest
+            {
+                AccountingDate = new DateOnly(2026, 6, 2),
+                ReversalReason = "Correction"
+            }, options: JsonOptions)
+        };
+        request.Headers.Add("X-Test-Unauthenticated", "true");
+
+        var response = await _client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ReversalWithoutReason_ShouldReturnValidationProblem()
+    {
+        await ResetAsync();
+        var (_, fiscalYearId) = await CreateOpenFiscalYearAsync("JE-HTTP-REVERSE-INVALID", "je-http-reverse-invalid");
+
+        var response = await _client.PostAsJsonAsync(
+            $"{BaseUrl}/{fiscalYearId}/by-reference/1/reverse",
+            new ReverseJournalEntryRequest { AccountingDate = new DateOnly(2026, 6, 2) },
+            JsonOptions);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        await AssertProblemAsync(response, "validation_failed");
     }
 
     [Fact]

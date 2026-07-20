@@ -4,6 +4,7 @@ using Apex.Modules.Accounting.JournalEntries.UseCases.DeleteDraftJournalEntry;
 using Apex.Modules.Accounting.JournalEntries.UseCases.GetJournalEntry;
 using Apex.Modules.Accounting.JournalEntries.UseCases.PostJournalEntry;
 using Apex.Modules.Accounting.JournalEntries.UseCases.ReplaceDraftLines;
+using Apex.Modules.Accounting.JournalEntries.UseCases.ReverseJournalEntry;
 using Apex.Modules.Accounting.JournalEntries.UseCases.SearchJournalEntries;
 using Apex.Modules.Accounting.JournalEntries.UseCases.UpdateDraftJournalEntry;
 using Microsoft.AspNetCore.Builder;
@@ -27,6 +28,7 @@ public static class JournalEntryEndpoints
         group.MapAppendDraftLinesEndpoint();
         group.MapReplaceDraftLinesEndpoint();
         group.MapPostJournalEntryEndpoint();
+        group.MapReverseJournalEntryEndpoint();
         group.MapDeleteDraftJournalEntryEndpoint();
         return app;
     }

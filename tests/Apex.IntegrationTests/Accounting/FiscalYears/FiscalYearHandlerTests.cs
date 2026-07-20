@@ -106,7 +106,7 @@ public sealed class FiscalYearHandlerTests(ApexIntegrationTestFixture fixture)
             Request(bookId, new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31)));
 
         await scope.Services.GetRequiredService<OpenFiscalYearHandler>().HandleAsync(created.Id);
-        var cancellationDate = new DateOnly(2026, 6, 30);
+        var cancellationDate = new DateOnly(2026, 1, 1);
         await scope.Services.GetRequiredService<FinalizeFiscalYearHandler>().HandleAsync(created.Id,
             new FinalizeFiscalYearRequest { FinalizedThroughDate = cancellationDate });
         await scope.Services.GetRequiredService<CancelFiscalYearHandler>().HandleAsync(created.Id,
@@ -131,7 +131,7 @@ public sealed class FiscalYearHandlerTests(ApexIntegrationTestFixture fixture)
         var createHandler = scope.Services.GetRequiredService<CreateFiscalYearHandler>();
         var first = await createHandler.HandleAsync(
             Request(bookId, new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31)));
-        var cancellationDate = new DateOnly(2026, 6, 30);
+        var cancellationDate = new DateOnly(2026, 1, 1);
 
         await scope.Services.GetRequiredService<OpenFiscalYearHandler>().HandleAsync(first.Id);
         await scope.Services.GetRequiredService<FinalizeFiscalYearHandler>().HandleAsync(first.Id,

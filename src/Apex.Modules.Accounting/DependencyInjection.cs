@@ -31,6 +31,7 @@ using Apex.Modules.Accounting.JournalEntries.UseCases.DeleteDraftJournalEntry;
 using Apex.Modules.Accounting.JournalEntries.UseCases.GetJournalEntry;
 using Apex.Modules.Accounting.JournalEntries.UseCases.PostJournalEntry;
 using Apex.Modules.Accounting.JournalEntries.UseCases.ReplaceDraftLines;
+using Apex.Modules.Accounting.JournalEntries.UseCases.ReverseJournalEntry;
 using Apex.Modules.Accounting.JournalEntries.UseCases.SearchJournalEntries;
 using Apex.Modules.Accounting.JournalEntries.UseCases.UpdateDraftJournalEntry;
 using FluentValidation;
@@ -64,6 +65,7 @@ public static class DependencyInjection
         services.AddScoped<IJournalEntryWriteRepository, JournalEntryWriteRepository>();
         services.AddScoped<IJournalEntryProjectionReadRepository, JournalEntryProjectionReadRepository>();
         services.AddScoped<IJournalEntryProjectionWriteRepository, JournalEntryProjectionWriteRepository>();
+        services.AddScoped<IJournalEntryFinalizationRepository, JournalEntryFinalizationRepository>();
         services.AddSingleton<IShardKeyFactory<long>, FiscalYearShardKeyFactory>();
 
         // Handlers
@@ -118,6 +120,7 @@ public static class DependencyInjection
         services.AddTransient<GetJournalEntryHandler>();
         services.AddTransient<SearchJournalEntriesHandler>();
         services.AddTransient<PostJournalEntryHandler>();
+        services.AddTransient<ReverseJournalEntryHandler>();
 
         // Validators
         services.AddTransient<IValidator<CreateAccountingBookRequest>, CreateAccountingBookValidator>();
@@ -143,6 +146,7 @@ public static class DependencyInjection
         services.AddTransient<IValidator<UpdateDraftJournalEntryRequest>, UpdateDraftJournalEntryValidator>();
         services.AddTransient<IValidator<AppendDraftLinesRequest>, AppendDraftLinesValidator>();
         services.AddTransient<IValidator<ReplaceDraftLinesRequest>, ReplaceDraftLinesValidator>();
+        services.AddTransient<IValidator<ReverseJournalEntryRequest>, ReverseJournalEntryValidator>();
         services.AddTransient<IValidator<SearchJournalEntriesRequest>, SearchJournalEntriesValidator>();
 
         return services;

@@ -70,12 +70,21 @@ CREATE TABLE journal_entry (
         OR (status = 'POSTED' AND posted_at IS NOT NULL)),
     CONSTRAINT ck_journal_entry_source_pair CHECK (
         (source_type IS NULL AND source_reference IS NULL)
-        OR (source_type IS NOT NULL AND source_reference IS NOT NULL))
+        OR (source_type IS NOT NULL AND source_reference IS NOT NULL)),
+    CONSTRAINT ck_journal_entry_reversal_pair CHECK (
+        (reversal_of_reference_number IS NULL AND reversal_reason IS NULL)
+        OR (reversal_of_reference_number IS NOT NULL AND reversal_reason IS NOT NULL)),
+    CONSTRAINT ck_journal_entry_reversal_not_self CHECK (
+        reversal_of_reference_number IS NULL OR reversal_of_reference_number <> reference_number)
 );
 GO
 CREATE UNIQUE INDEX ux_journal_entry_source
     ON journal_entry (fiscal_year_id, source_type, source_reference)
     WHERE source_reference IS NOT NULL;
+GO
+CREATE UNIQUE INDEX ux_journal_entry_effective_reversal
+    ON journal_entry (fiscal_year_id, reversal_of_reference_number)
+    WHERE reversal_of_reference_number IS NOT NULL;
 GO
 CREATE INDEX ix_journal_entry_finalization_order
     ON journal_entry (fiscal_year_id, accounting_date, registered_at, reference_number);

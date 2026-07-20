@@ -6,6 +6,7 @@ using Apex.Modules.Accounting.FiscalYears.Domain;
 using Apex.Modules.Accounting.FiscalYears.UseCases.CreateFiscalYear;
 using Apex.Modules.Accounting.FiscalYears.UseCases.OpenFiscalYear;
 using Apex.Modules.Accounting.FiscalYears.UseCases.FinalizeFiscalYear;
+using Apex.Modules.Accounting.FiscalYears.UseCases.GetFiscalYear;
 using Apex.Modules.Accounting.JournalEntries.Domain;
 using Apex.Modules.Accounting.JournalEntries.UseCases;
 using Apex.Modules.Accounting.JournalEntries.UseCases.AppendDraftLines;
@@ -202,22 +203,85 @@ public sealed class JournalEntryHandlerTests(ApexIntegrationTestFixture fixture)
     }
 
     [Fact]
-    public async Task AppendLines_OnFinalizedDate_IsRejected()
+    public async Task CreateDraft_OnFinalizedDate_IsRejected()
     {
         await ResetDatabasesAsync();
         await using var scope = await CreateScopeAsync();
         var (bookId, fiscalYearId) = await CreateOpenFiscalYearAsync(
             scope, "JE-FINALIZED-LINES", "je-finalized-lines");
-        var created = await Create(scope).HandleAsync(DraftRequest(bookId, fiscalYearId));
         await scope.Services.GetRequiredService<FinalizeFiscalYearHandler>().HandleAsync(
             fiscalYearId, new FinalizeFiscalYearRequest { FinalizedThroughDate = AccountingDate });
 
         var exception = await Assert.ThrowsAsync<BusinessRuleException>(() =>
-            scope.Services.GetRequiredService<AppendDraftLinesHandler>().HandleAsync(
-                fiscalYearId, created.Id,
-                new AppendDraftLinesRequest { Lines = [Line("DEBIT", 1m)] }));
+            Create(scope).HandleAsync(DraftRequest(bookId, fiscalYearId)));
 
         Assert.Equal(JournalEntryErrors.AccountingDateFinalized, exception.ErrorCode);
+    }
+
+    [Fact]
+    public async Task ConcurrentCreateAndFinalization_CommitOnlyOneValidOutcome()
+    {
+        await ResetDatabasesAsync();
+        long bookId;
+        long fiscalYearId;
+        await using (var setupScope = await CreateScopeAsync())
+        {
+            (bookId, fiscalYearId) = await CreateOpenFiscalYearAsync(
+                setupScope, "JE-FINALIZE-RACE", "je-finalize-race");
+        }
+
+        var createAttempt = Task.Run(async () =>
+        {
+            await using var scope = await CreateScopeAsync();
+            try
+            {
+                await Create(scope).HandleAsync(DraftRequest(bookId, fiscalYearId));
+                return "create_success";
+            }
+            catch (BusinessRuleException)
+            {
+                return "create_failed";
+            }
+        });
+        var finalizeAttempt = Task.Run(async () =>
+        {
+            await using var scope = await CreateScopeAsync();
+            try
+            {
+                await scope.Services.GetRequiredService<FinalizeFiscalYearHandler>().HandleAsync(
+                    fiscalYearId,
+                    new FinalizeFiscalYearRequest { FinalizedThroughDate = AccountingDate });
+                return "finalize_success";
+            }
+            catch (ConflictException)
+            {
+                return "finalize_failed";
+            }
+        });
+
+        var outcomes = await Task.WhenAll(createAttempt, finalizeAttempt);
+        Assert.Single(outcomes, outcome => outcome.EndsWith("success", StringComparison.Ordinal));
+
+        await using var verificationScope = await CreateScopeAsync();
+        var fiscalYear = await verificationScope.Services.GetRequiredService<GetFiscalYearHandler>()
+            .HandleAsync(fiscalYearId);
+        var entries = await verificationScope.Services.GetRequiredService<SearchJournalEntriesHandler>()
+            .HandleAsync(new SearchJournalEntriesRequest
+            {
+                FiscalYearId = fiscalYearId,
+                Page = 1,
+                PageSize = 10
+            });
+        if (outcomes.Contains("finalize_success", StringComparer.Ordinal))
+        {
+            Assert.Equal(AccountingDate, fiscalYear.FinalizedThroughDate);
+            Assert.Empty(entries.Items);
+        }
+        else
+        {
+            Assert.Equal(AccountingDate.AddDays(-1), fiscalYear.FinalizedThroughDate);
+            Assert.Single(entries.Items);
+        }
     }
 
     private static CreateDraftJournalEntryRequest SourcedRequest(
@@ -283,7 +347,7 @@ public sealed class JournalEntryHandlerTests(ApexIntegrationTestFixture fixture)
             {
                 AccountingBookId = bookId,
                 Title = "2026",
-                StartDate = new DateOnly(2026, 1, 1),
+                StartDate = AccountingDate,
                 EndDate = new DateOnly(2026, 12, 31)
             });
         await scope.Services.GetRequiredService<OpenFiscalYearHandler>().HandleAsync(fiscalYear.Id);

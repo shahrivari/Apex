@@ -340,9 +340,8 @@ Exactly one matching Fiscal Year is returned when one exists and satisfies the r
 
 ### 9.8 Finalize Through Date
 
-The direct HTTP operation is temporarily disabled once Journal Entries are present. Internal
-Accounting workflows may use the handler for setup and controlled orchestration, but public
-finalization must wait for the coordinated Journal Entry numbering and projection workflow.
+The public operation coordinates Fiscal Year state, Journal Entry numbering, and financial
+projection verification in one authoritative shard transaction.
 
 #### Business intent
 
@@ -355,21 +354,26 @@ Protect completed accounting activity through a specified date.
 
 #### Business outcome
 
-- The finalized-through date advances to the requested date.
+- The finalized-through date advances exactly one contiguous accounting day.
 - Dates on or before the new boundary become protected from ordinary change.
+- Posted entries in the unfinalized tail are deterministically renumbered and numbers through the
+  new boundary are frozen.
 
 #### Business failures
 
 - The Fiscal Year does not exist.
 - The caller is not permitted to finalize it.
 - The Fiscal Year is not open.
-- The new date is before the current finalized-through date.
+- The new date is neither the current boundary nor exactly its next day.
 - The new date is outside the effective range of the Fiscal Year.
-- Required accounting processes for the requested date are incomplete.
+- Draft Journal Entries exist on the day being finalized.
+- Financial projections through the requested date do not reconcile with posted source entries.
 
 Requesting the current finalized-through date may be treated as an idempotent success.
 
-For the current phase, finalization is an explicit authorized operator decision because the dependent accounting processes do not yet exist in Apex. As accounting ingestion, valuation, reconciliation, and document-generation processes are introduced, each process that can affect a date must expose a readiness check. Finalization must then require all applicable processes through the requested date to be complete, with no pending or failed work that could change accounting results.
+Finalization currently verifies Journal Entry readiness and both financial projections. Future
+accounting processes that can affect a date must expose readiness checks and join this coordinated
+workflow before their data may be considered final.
 
 Finalization cannot be reversed. A correction to finalized accounting data must use an explicit corrective accounting workflow rather than moving the finalized-through date backward.
 
@@ -531,7 +535,8 @@ Until then:
 2. A Fiscal Year may be opened only when its Accounting Book is `ACTIVE`.
 3. A draft may be deleted only when it has no persisted dependencies, including non-posted configuration.
 4. Draft Fiscal Years are deleted, not cancelled. Cancellation applies only to open years.
-5. In the current phase, finalization is an authorized operator decision. Future accounting processes must participate in readiness validation when introduced.
+5. Daily finalization is coordinated with Journal Entry numbering and financial projection
+   reconciliation; future accounting processes must participate in readiness validation.
 6. Finalization is irreversible. Corrections use accounting workflows rather than moving the boundary backward.
 7. Cancellation preserves the original end date and records a separate cancellation date as the effective final date.
 8. Closed and cancelled Fiscal Years remain readable for authorized historical reporting.

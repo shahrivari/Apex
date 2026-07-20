@@ -27,11 +27,12 @@ public sealed class UpdateDraftJournalEntryHandler(
         await using var shard = await shardConnectionFactory.OpenAsync(
             shardKeyFactory.Create(fiscalYearId), beginTransaction: true, cancellationToken);
 
+        var fiscalYear = await activityValidator.LockAsync(shard, fiscalYearId, cancellationToken);
         var entry = await writeRepository.GetForUpdateAsync(shard, fiscalYearId, id, cancellationToken)
             ?? throw new NotFoundException("Journal entry was not found.", JournalEntryErrors.NotFound);
 
         await activityValidator.ValidateAsync(
-            shard, fiscalYearId, entry.AccountingBookId, request.AccountingDate, cancellationToken);
+            fiscalYear, entry.AccountingBookId, request.AccountingDate, cancellationToken);
 
         entry.UpdateHeader(request.AccountingDate, request.Description, documentType, balanceEffect, now);
         await writeRepository.UpdateHeaderAsync(shard, fiscalYearId, entry, cancellationToken);

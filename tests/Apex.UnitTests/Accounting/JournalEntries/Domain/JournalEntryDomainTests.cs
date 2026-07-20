@@ -206,6 +206,79 @@ public sealed class JournalEntryDomainTests
         Assert.Equal(JournalEntryErrors.DraftRequired, exception.ErrorCode);
     }
 
+    [Fact]
+    public void CreatePostedReversal_SwapsSidesAndLinksEntries()
+    {
+        var original = RehydratePosted();
+        var reversedAt = AccountingDate.AddDays(1);
+
+        var reversal = JournalEntry.CreatePostedReversal(
+            original, 2, 2, 2, reversedAt, "Correction",
+            [21, 22],
+            CreatedAt.AddDays(1));
+
+        Assert.Equal(JournalEntryStatus.Posted, reversal.Status);
+        Assert.Equal(InsertionType.System, reversal.InsertionType);
+        Assert.Equal(original.ReferenceNumber, reversal.ReversalOfReferenceNumber);
+        Assert.Equal(reversal.ReferenceNumber, original.ReversedByReferenceNumber);
+        Assert.Equal("Correction", reversal.ReversalReason);
+        Assert.Equal([JournalEntrySide.Credit, JournalEntrySide.Debit],
+            reversal.Lines.Select(line => line.Side).ToArray());
+    }
+
+    [Fact]
+    public void CreatePostedReversal_WhenAlreadyReversed_IsRejected()
+    {
+        var original = RehydratePosted();
+        _ = JournalEntry.CreatePostedReversal(
+            original, 2, 2, 2, AccountingDate, "First",
+            [21, 22],
+            CreatedAt.AddHours(1));
+
+        var exception = Assert.Throws<ConflictException>(() => JournalEntry.CreatePostedReversal(
+            original, 3, 3, 3, AccountingDate, "Second",
+            [31, 32],
+            CreatedAt.AddHours(2)));
+
+        Assert.Equal(JournalEntryErrors.AlreadyReversed, exception.ErrorCode);
+    }
+
+    [Fact]
+    public void CreatePostedReversal_FromDraft_IsRejected()
+    {
+        var draft = CreateDraft("draft",
+            Line(11, JournalEntrySide.Debit, 100m), Line(12, JournalEntrySide.Credit, 100m));
+
+        var exception = Assert.Throws<BusinessRuleException>(() => JournalEntry.CreatePostedReversal(
+            draft, 2, 2, 2, AccountingDate, "Correction", [21, 22], CreatedAt.AddHours(1)));
+
+        Assert.Equal(JournalEntryErrors.PostedImmutable, exception.ErrorCode);
+    }
+
+    [Fact]
+    public void CreatePostedReversal_BeforeOriginalDate_IsRejected()
+    {
+        var original = RehydratePosted();
+
+        var exception = Assert.Throws<BusinessRuleException>(() => JournalEntry.CreatePostedReversal(
+            original, 2, 2, 2, AccountingDate.AddDays(-1), "Correction", [21, 22], CreatedAt.AddHours(1)));
+
+        Assert.Equal(JournalEntryErrors.InvalidReversalDate, exception.ErrorCode);
+        Assert.Null(original.ReversedByReferenceNumber);
+    }
+
+    [Fact]
+    public void CreatePostedReversal_WithoutReason_IsRejected()
+    {
+        var original = RehydratePosted();
+
+        var exception = Assert.Throws<BusinessRuleException>(() => JournalEntry.CreatePostedReversal(
+            original, 2, 2, 2, AccountingDate, "  ", [21, 22], CreatedAt.AddHours(1)));
+
+        Assert.Equal(JournalEntryErrors.ReversalReasonRequired, exception.ErrorCode);
+        Assert.Null(original.ReversedByReferenceNumber);
+    }
+
     private static JournalEntry CreateDraft(string description, params JournalEntryLineInput[] lines) =>
         JournalEntry.Create(
             1, 2, 3, referenceNumber: 1, journalEntryNumber: 1, AccountingDate, CreatedAt, description,

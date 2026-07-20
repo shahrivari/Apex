@@ -157,19 +157,19 @@ public sealed class FiscalYearHttpTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task DirectFinalize_ShouldBeDisabledUntilJournalCoordinationExists()
+    public async Task CoordinatedFinalize_ShouldAdvanceNextAccountingDay()
     {
         await _factory.ResetAccountingDatabaseAsync();
         var bookId = await CreateBookAsync("FY-HTTP-LIFECYCLE", "fy-http-lifecycle");
         var fiscalYear = await CreateFiscalYearAsync(
             bookId, new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31));
-        var cancellationDate = new DateOnly(2026, 6, 30);
+        var finalizationDate = new DateOnly(2026, 1, 1);
 
         var openResponse = await _client.PostAsync($"{BaseUrl}/{fiscalYear.Id}/open", null);
         var finalizeResponse = await _client.PostAsJsonAsync($"{BaseUrl}/{fiscalYear.Id}/finalize",
-            new FinalizeFiscalYearRequest { FinalizedThroughDate = cancellationDate });
+            new FinalizeFiscalYearRequest { FinalizedThroughDate = finalizationDate });
         Assert.Equal(HttpStatusCode.OK, openResponse.StatusCode);
-        Assert.Equal(HttpStatusCode.Conflict, finalizeResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, finalizeResponse.StatusCode);
     }
 
     private async Task<long> CreateBookAsync(string code, string ownerId)

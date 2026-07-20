@@ -21,6 +21,14 @@ public interface IJournalEntryWriteRepository
         IShardConnection connection, long fiscalYearId, string sourceType, string sourceReference,
         CancellationToken cancellationToken = default);
 
+    Task<JournalEntry?> GetByReferenceNumberForUpdateAsync(
+        IShardConnection connection, long fiscalYearId, long referenceNumber,
+        CancellationToken cancellationToken = default);
+
+    Task LinkReversalAsync(
+        IShardConnection connection, long fiscalYearId, JournalEntry original,
+        CancellationToken cancellationToken = default);
+
     Task MarkPostedAsync(
         IShardConnection connection, long fiscalYearId, JournalEntry entry,
         CancellationToken cancellationToken = default);

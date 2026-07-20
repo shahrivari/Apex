@@ -70,6 +70,18 @@ public sealed class FiscalYearDomainTests
     }
 
     [Fact]
+    public void FinalizeNextDay_RejectsSkippedDate()
+    {
+        var fiscalYear = CreateDraft();
+        fiscalYear.Open(CreatedAt.AddHours(1));
+
+        var exception = Assert.Throws<BusinessRuleException>(() =>
+            fiscalYear.FinalizeNextDay(new DateOnly(2026, 1, 2), CreatedAt.AddDays(1)));
+
+        Assert.Equal(FiscalYearErrors.CannotBeFinalized, exception.ErrorCode);
+    }
+
+    [Fact]
     public void Cancel_RequiresFinalizedThroughDateAndBecomesTerminal()
     {
         var fiscalYear = CreateDraft();

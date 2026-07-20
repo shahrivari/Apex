@@ -21,9 +21,9 @@ public sealed class JournalEntry
     public BalanceEffect BalanceEffect { get; private set; }
     public string? SourceType { get; private init; }
     public string? SourceReference { get; private init; }
-    public long? ReversalOfReferenceNumber { get; private init; }
+    public long? ReversalOfReferenceNumber { get; private set; }
     public long? ReversedByReferenceNumber { get; private set; }
-    public string? ReversalReason { get; private init; }
+    public string? ReversalReason { get; private set; }
     public DateTime? PostedAt { get; private set; }
     public DateTime CreatedAt { get; private init; }
     public DateTime? UpdatedAt { get; private set; }
@@ -190,6 +190,51 @@ public sealed class JournalEntry
         Status = JournalEntryStatus.Posted;
         PostedAt = now;
         UpdatedAt = now;
+    }
+
+    public static JournalEntry CreatePostedReversal(
+        JournalEntry original, long id, long referenceNumber, long journalEntryNumber,
+        DateOnly accountingDate, string reversalReason, IReadOnlyList<long> lineIds,
+        DateTime now)
+    {
+        if (original.Status != JournalEntryStatus.Posted)
+            throw new BusinessRuleException(
+                "Only a posted journal entry can be reversed.", JournalEntryErrors.PostedImmutable);
+        if (original.ReversedByReferenceNumber.HasValue)
+            throw new ConflictException(
+                "The journal entry has already been reversed.", JournalEntryErrors.AlreadyReversed);
+        if (accountingDate < original.AccountingDate)
+            throw new BusinessRuleException(
+                "The reversal date cannot precede the original accounting date.",
+                JournalEntryErrors.InvalidReversalDate);
+        if (string.IsNullOrWhiteSpace(reversalReason))
+            throw new BusinessRuleException(
+                "A reversal reason is required.", JournalEntryErrors.ReversalReasonRequired);
+        if (lineIds.Count != original.Lines.Count)
+            throw new ArgumentException("A new identity is required for every reversal line.", nameof(lineIds));
+
+        var lines = original.Lines.Select((line, index) => new JournalEntryLineInput(
+            lineIds[index],
+            line.Side == JournalEntrySide.Debit ? JournalEntrySide.Credit : JournalEntrySide.Debit,
+            line.Amount,
+            line.AccountClassCode,
+            line.GeneralAccountCode,
+            line.SubsidiaryAccountCode,
+            line.DetailAccountCode,
+            line.Description,
+            line.RowNumber)).ToList();
+
+        var reversal = Create(
+            id, original.AccountingBookId, original.FiscalYearId, referenceNumber,
+            journalEntryNumber, accountingDate, now, original.Description,
+            original.DocumentType, InsertionType.System, original.BalanceEffect,
+            null, null, lines, now);
+        reversal.ReversalOfReferenceNumber = original.ReferenceNumber;
+        reversal.ReversalReason = reversalReason.Trim();
+        reversal.Post(now);
+        original.ReversedByReferenceNumber = reversal.ReferenceNumber;
+        original.UpdatedAt = now;
+        return reversal;
     }
 
     public decimal TotalDebit() =>

@@ -39,20 +39,23 @@ Last updated: 2026-07-20.
 - Source-Reference idempotency on create (equivalent replay returns existing; divergent → conflict).
 - Tests: domain `Post` + posting/projection/statistical/idempotency integration (all green).
 
-## Next
+### Increment 3a — Reversal ✅
+- **Reverse posted entry** (§11.7): implemented as a single Fiscal Year shard transaction. The new
+  posted entry receives both numbers, copies every line with debit/credit swapped, links both
+  entries, and applies opposite financial projection effects on its own accounting date.
+- Reversal is restricted to the original Fiscal Year and enforced exactly once by row locking,
+  aggregate rules, and a filtered unique index.
+- Statistical reversals do not modify financial projections.
 
-### Increment 3 — Reversal + daily finalization
-- **Reverse posted entry** (§11.7): new linked entry, same book/balance-effect, every line copied
-  with debit/credit swapped; set `ReversalOfReferenceNumber` / `ReversedByReferenceNumber`; at most
-  one effective reversal; reversal posted atomically and applies opposite projection effects on its
-  own accounting date.
-- **Finalize accounting day** (§11.10): deterministically order posted entries in the unfinalized
-  tail, reassign provisional Journal Entry Numbers, freeze numbers through the target date, advance
-  the fiscal year's Finalized-Through Date; reject if any draft exists on/before the target date.
-  Atomic and irreversible.
-- Renumbering must preserve uniqueness throughout the transaction (no transient duplicate leaks).
-- Concurrency: finalization serializes with create/edit/post/delete/reverse for the same fiscal
-  year.
+### Increment 3b — Daily finalization ✅
+- **Finalize accounting day** (§11.10): implemented as one Fiscal Year shard transaction with an
+  exactly-next-day boundary, blocking-draft detection, source-to-projection reconciliation,
+  deterministic unfinalized-tail renumbering, number freezing, and boundary advancement.
+- Collision-safe two-phase renumbering preserves Journal Entry Number uniqueness throughout the
+  transaction while leaving later numbers provisional.
+- Fiscal Year-first locking serializes finalization with create/edit/post/delete/reverse operations.
+
+## Next
 
 ### Increment 4 — Reporting + reconciliation
 - **Rebuild** projections from posted entries (full fiscal year or from an unfinalized date) into

@@ -31,5 +31,11 @@ public static class JournalEntryErrors
     public const string DuplicateSourceReference = "journal_entry_duplicate_source_reference";
     public const string ConflictingIdempotentRequest = "journal_entry_conflicting_idempotent_request";
     public const string NumberingConflict = "journal_entry_numbering_conflict";
+    public const string AlreadyReversed = "journal_entry_already_reversed";
+    public const string InvalidReversalDate = "journal_entry_invalid_reversal_date";
+    public const string ReversalReasonRequired = "journal_entry_reversal_reason_required";
+    public const string InvalidFinalizationDate = "journal_entry_invalid_finalization_date";
+    public const string DraftsBlockFinalization = "journal_entry_drafts_block_finalization";
+    public const string ProjectionReconciliationFailed = "journal_entry_projection_reconciliation_failed";
     public const string NotAuthorized = "journal_entry_not_authorized";
 }

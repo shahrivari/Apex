@@ -73,6 +73,40 @@ public sealed class JournalEntryWriteRepository : IJournalEntryWriteRepository
         return Map(header, lines);
     }
 
+    public async Task<JournalEntry?> GetByReferenceNumberForUpdateAsync(
+        IShardConnection connection, long fiscalYearId, long referenceNumber,
+        CancellationToken cancellationToken = default)
+    {
+        var header = await connection.Connection.QuerySingleOrDefaultAsync<JournalEntryRow>(new CommandDefinition(
+            $"SELECT {JournalEntryReadRepository.HeaderColumns} FROM journal_entry WITH (UPDLOCK, ROWLOCK) WHERE fiscal_year_id = @FiscalYearId AND reference_number = @ReferenceNumber",
+            new { FiscalYearId = fiscalYearId, ReferenceNumber = referenceNumber },
+            connection.Transaction, cancellationToken: cancellationToken));
+        if (header is null)
+            return null;
+
+        var lines = (await connection.Connection.QueryAsync<JournalEntryLineRow>(new CommandDefinition(
+            $"SELECT {JournalEntryReadRepository.LineColumns} FROM journal_entry_line WHERE journal_entry_id = @EntryId ORDER BY row_number",
+            new { EntryId = header.Id }, connection.Transaction,
+            cancellationToken: cancellationToken))).AsList();
+        return Map(header, lines);
+    }
+
+    public async Task LinkReversalAsync(
+        IShardConnection connection, long fiscalYearId, JournalEntry original,
+        CancellationToken cancellationToken = default)
+    {
+        var affected = await connection.Connection.ExecuteAsync(new CommandDefinition(
+            "UPDATE journal_entry SET reversed_by_reference_number = @ReversedByReferenceNumber, updated_at = @UpdatedAt WHERE fiscal_year_id = @FiscalYearId AND id = @Id AND reversed_by_reference_number IS NULL AND status = 'POSTED'",
+            new
+            {
+                original.Id,
+                FiscalYearId = fiscalYearId,
+                original.ReversedByReferenceNumber,
+                original.UpdatedAt
+            }, connection.Transaction, cancellationToken: cancellationToken));
+        EnsureOneRow(affected);
+    }
+
     public async Task MarkPostedAsync(
         IShardConnection connection, long fiscalYearId, JournalEntry entry,
         CancellationToken cancellationToken = default)

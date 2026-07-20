@@ -27,11 +27,12 @@ public sealed class AppendDraftLinesHandler(
         await using var shard = await shardConnectionFactory.OpenAsync(
             shardKeyFactory.Create(fiscalYearId), beginTransaction: true, cancellationToken);
 
+        var fiscalYear = await activityValidator.LockAsync(shard, fiscalYearId, cancellationToken);
         var entry = await writeRepository.GetForUpdateAsync(shard, fiscalYearId, id, cancellationToken)
             ?? throw new NotFoundException("Journal entry was not found.", JournalEntryErrors.NotFound);
 
         await activityValidator.ValidateAsync(
-            shard, fiscalYearId, entry.AccountingBookId, entry.AccountingDate, cancellationToken);
+            fiscalYear, entry.AccountingBookId, entry.AccountingDate, cancellationToken);
         entry.AppendLines(inputs, now);
         await writeRepository.ReplaceLinesAsync(shard, fiscalYearId, entry, cancellationToken);
         await shard.Transaction!.CommitAsync(cancellationToken);

@@ -128,6 +128,16 @@ public sealed class FiscalYear
         UpdatedAt = now;
     }
 
+    public void FinalizeNextDay(DateOnly date, DateTime now)
+    {
+        if (FinalizedThroughDate == DateOnly.MaxValue
+            || date != FinalizedThroughDate.AddDays(1))
+            throw new BusinessRuleException(
+                "Daily finalization must advance exactly one day.",
+                FiscalYearErrors.CannotBeFinalized);
+        FinalizeThrough(date, now);
+    }
+
     public void Cancel(DateOnly cancellationDate, DateTime now)
     {
         if (Status != FiscalYearStatus.Open
