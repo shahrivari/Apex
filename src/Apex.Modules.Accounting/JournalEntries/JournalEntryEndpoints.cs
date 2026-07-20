@@ -7,6 +7,13 @@ using Apex.Modules.Accounting.JournalEntries.UseCases.ReplaceDraftLines;
 using Apex.Modules.Accounting.JournalEntries.UseCases.ReverseJournalEntry;
 using Apex.Modules.Accounting.JournalEntries.UseCases.SearchJournalEntries;
 using Apex.Modules.Accounting.JournalEntries.UseCases.UpdateDraftJournalEntry;
+using Apex.Modules.Accounting.JournalEntries.UseCases.RebuildJournalEntryProjections;
+using Apex.Modules.Accounting.JournalEntries.UseCases.ReconcileJournalEntryProjections;
+using Apex.Modules.Accounting.JournalEntries.UseCases.GetTrialBalance;
+using Apex.Modules.Accounting.JournalEntries.UseCases.GetAccountBalances;
+using Apex.Modules.Accounting.JournalEntries.UseCases.GetCrossFiscalYearTurnover;
+using Apex.Modules.Accounting.JournalEntries.UseCases.GetTransactionReport;
+using Apex.Modules.Accounting.JournalEntries.UseCases.GetJournalEntryAudit;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -30,6 +37,13 @@ public static class JournalEntryEndpoints
         group.MapPostJournalEntryEndpoint();
         group.MapReverseJournalEntryEndpoint();
         group.MapDeleteDraftJournalEntryEndpoint();
+        group.MapRebuildJournalEntryProjectionsEndpoint();
+        group.MapReconcileJournalEntryProjectionsEndpoint();
+        group.MapGetTrialBalanceEndpoint();
+        group.MapGetAccountBalancesEndpoint();
+        group.MapGetCrossFiscalYearTurnoverEndpoint();
+        group.MapGetTransactionReportEndpoint();
+        group.MapGetJournalEntryAuditEndpoint();
         return app;
     }
 }

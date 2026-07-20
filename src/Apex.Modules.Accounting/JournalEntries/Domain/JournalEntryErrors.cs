@@ -37,5 +37,6 @@ public static class JournalEntryErrors
     public const string InvalidFinalizationDate = "journal_entry_invalid_finalization_date";
     public const string DraftsBlockFinalization = "journal_entry_drafts_block_finalization";
     public const string ProjectionReconciliationFailed = "journal_entry_projection_reconciliation_failed";
+    public const string ProjectionRebuildConflict = "journal_entry_projection_rebuild_conflict";
     public const string NotAuthorized = "journal_entry_not_authorized";
 }

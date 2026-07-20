@@ -653,6 +653,10 @@ When a report excludes Document Types, its opening and closing values must be de
 ## 17. Cross-Fiscal-Year Reporting
 
 - Each projection row retains Fiscal Year ID.
+- Cross-Fiscal-Year requests supply the complete, explicit set of Fiscal Year IDs to query.
+- Shard reads may execute concurrently, but the report is all-or-nothing: failure to read any
+  requested shard fails the entire report and no partial result is returned.
+- Successful shard results are merged and ordered deterministically by account-code grain.
 - Period turnover may be summed across multiple Fiscal Years without combining duplicate opening activity incorrectly.
 - Point-in-time balance normally resolves through the Fiscal Year containing the report date.
 - Opening entries carried into a new Fiscal Year must not be double-counted by summing closing balances across Fiscal Years.

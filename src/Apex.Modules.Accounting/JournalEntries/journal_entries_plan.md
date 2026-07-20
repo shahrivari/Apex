@@ -55,16 +55,18 @@ Last updated: 2026-07-20.
   transaction while leaving later numbers provisional.
 - Fiscal Year-first locking serializes finalization with create/edit/post/delete/reverse operations.
 
-## Next
-
-### Increment 4 — Reporting + reconciliation
-- **Rebuild** projections from posted entries (full fiscal year or from an unfinalized date) into
-  replacement data; **reconcile** projections vs. source entries and report drift without mutating
-  source. Consider replacing the sparse balance projection with dense/checkpoint storage here.
-- **Aggregate report queries** served by projections: trial balance (opening/period/closing),
-  balance-as-of-date, Document-Type-filtered turnover, cross-fiscal-year period turnover.
-- **Transaction-detail queries** read from entries + lines: general ledger, journal report,
-  drill-down, audit/reversal history.
+### Increment 4 — Reporting + reconciliation ✅
+- Full-Fiscal-Year and unfinalized-suffix projection rebuilds run atomically under the Fiscal Year
+  lock; explicit reconciliation reports grain-level expected and actual values without mutation.
+- Projection-backed reports cover trial balance, balance as of date, Document-Type-filtered
+  turnover, and cross-Fiscal-Year period turnover.
+- Cross-Fiscal-Year turnover requires explicit Fiscal Year IDs, reads shards concurrently, merges
+  deterministically, and fails the whole request if any shard read fails.
+- Source-backed general-ledger and journal reports preserve entry/line ordering, descriptions,
+  numbering, source dimensions, and reversal links; drill-down and audit history are exposed
+  separately.
+- Sparse per-date balance deltas remain the chosen storage strategy; closing balances are summed
+  at read time and rebuild/reconciliation operate on the same grain.
 
 ## Known limitations to revisit
 
@@ -73,7 +75,7 @@ Last updated: 2026-07-20.
 - Operation-specific authorization and Accounting-Book ownership authorization are deferred.
 - General master-data eligibility is validated as a snapshot before the shard commit; the narrow
   cross-database race is accepted for the current phase.
-- `daily_account_balance` uses sparse per-date deltas (closing computed on read); dense/checkpoint
-  optimization deferred to Increment 4.
+- `daily_account_balance` uses sparse per-date deltas (closing computed on read); a future
+  dense/checkpoint optimization remains optional and does not change report contracts.
 - Shard assignment uses a single lowest-id active shard; a balanced provisioning workflow is future
   work.

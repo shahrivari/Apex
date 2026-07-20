@@ -113,7 +113,10 @@ public sealed class JournalEntryFinalizationRepository : IJournalEntryFinalizati
                 line.account_class_code, line.general_account_code, line.subsidiary_account_code,
                 ISNULL(line.detail_account_code, ''), entry.document_type
         ), projection_turnover AS (
-            SELECT * FROM daily_account_turnover
+            SELECT accounting_book_id, fiscal_year_id, balance_date,
+                account_class_code, general_account_code, subsidiary_account_code,
+                detail_account_code, document_type, debit_turnover, credit_turnover
+            FROM daily_account_turnover
             WHERE accounting_book_id = @AccountingBookId
               AND fiscal_year_id = @FiscalYearId
               AND balance_date <= @ThroughDate
@@ -151,7 +154,10 @@ public sealed class JournalEntryFinalizationRepository : IJournalEntryFinalizati
                 line.account_class_code, line.general_account_code, line.subsidiary_account_code,
                 ISNULL(line.detail_account_code, '')
         ), projection_balance AS (
-            SELECT * FROM daily_account_balance
+            SELECT accounting_book_id, fiscal_year_id, account_class_code,
+                general_account_code, subsidiary_account_code, detail_account_code,
+                balance_date, net_change
+            FROM daily_account_balance
             WHERE accounting_book_id = @AccountingBookId
               AND fiscal_year_id = @FiscalYearId
               AND balance_date <= @ThroughDate

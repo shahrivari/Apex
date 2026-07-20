@@ -34,6 +34,13 @@ using Apex.Modules.Accounting.JournalEntries.UseCases.ReplaceDraftLines;
 using Apex.Modules.Accounting.JournalEntries.UseCases.ReverseJournalEntry;
 using Apex.Modules.Accounting.JournalEntries.UseCases.SearchJournalEntries;
 using Apex.Modules.Accounting.JournalEntries.UseCases.UpdateDraftJournalEntry;
+using Apex.Modules.Accounting.JournalEntries.UseCases.RebuildJournalEntryProjections;
+using Apex.Modules.Accounting.JournalEntries.UseCases.ReconcileJournalEntryProjections;
+using Apex.Modules.Accounting.JournalEntries.UseCases.GetTrialBalance;
+using Apex.Modules.Accounting.JournalEntries.UseCases.GetAccountBalances;
+using Apex.Modules.Accounting.JournalEntries.UseCases.GetCrossFiscalYearTurnover;
+using Apex.Modules.Accounting.JournalEntries.UseCases.GetTransactionReport;
+using Apex.Modules.Accounting.JournalEntries.UseCases.GetJournalEntryAudit;
 using FluentValidation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -66,6 +73,8 @@ public static class DependencyInjection
         services.AddScoped<IJournalEntryProjectionReadRepository, JournalEntryProjectionReadRepository>();
         services.AddScoped<IJournalEntryProjectionWriteRepository, JournalEntryProjectionWriteRepository>();
         services.AddScoped<IJournalEntryFinalizationRepository, JournalEntryFinalizationRepository>();
+        services.AddScoped<IJournalEntryProjectionMaintenanceRepository, JournalEntryProjectionMaintenanceRepository>();
+        services.AddScoped<IJournalEntryReportRepository, JournalEntryReportRepository>();
         services.AddSingleton<IShardKeyFactory<long>, FiscalYearShardKeyFactory>();
 
         // Handlers
@@ -121,6 +130,13 @@ public static class DependencyInjection
         services.AddTransient<SearchJournalEntriesHandler>();
         services.AddTransient<PostJournalEntryHandler>();
         services.AddTransient<ReverseJournalEntryHandler>();
+        services.AddTransient<RebuildJournalEntryProjectionsHandler>();
+        services.AddTransient<ReconcileJournalEntryProjectionsHandler>();
+        services.AddTransient<GetTrialBalanceHandler>();
+        services.AddTransient<GetAccountBalancesHandler>();
+        services.AddTransient<GetCrossFiscalYearTurnoverHandler>();
+        services.AddTransient<GetTransactionReportHandler>();
+        services.AddTransient<GetJournalEntryAuditHandler>();
 
         // Validators
         services.AddTransient<IValidator<CreateAccountingBookRequest>, CreateAccountingBookValidator>();
@@ -147,6 +163,11 @@ public static class DependencyInjection
         services.AddTransient<IValidator<AppendDraftLinesRequest>, AppendDraftLinesValidator>();
         services.AddTransient<IValidator<ReplaceDraftLinesRequest>, ReplaceDraftLinesValidator>();
         services.AddTransient<IValidator<ReverseJournalEntryRequest>, ReverseJournalEntryValidator>();
+        services.AddTransient<IValidator<GetTrialBalanceRequest>, GetTrialBalanceValidator>();
+        services.AddTransient<IValidator<GetAccountBalancesRequest>, GetAccountBalancesValidator>();
+        services.AddTransient<IValidator<GetCrossFiscalYearTurnoverRequest>, GetCrossFiscalYearTurnoverValidator>();
+        services.AddTransient<IValidator<GetTransactionReportRequest>, GetTransactionReportValidator>();
+        services.AddTransient<IValidator<GetJournalEntryAuditRequest>, GetJournalEntryAuditValidator>();
         services.AddTransient<IValidator<SearchJournalEntriesRequest>, SearchJournalEntriesValidator>();
 
         return services;

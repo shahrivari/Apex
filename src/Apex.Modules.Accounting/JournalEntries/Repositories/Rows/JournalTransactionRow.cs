@@ -1,0 +1,25 @@
+namespace Apex.Modules.Accounting.JournalEntries.Repositories.Rows;
+
+public sealed record JournalTransactionRow(
+    long EntryId,
+    long AccountingBookId,
+    long FiscalYearId,
+    long ReferenceNumber,
+    long JournalEntryNumber,
+    DateOnly AccountingDate,
+    DateTime RegisteredAt,
+    string EntryDescription,
+    string DocumentType,
+    string InsertionType,
+    string BalanceEffect,
+    long? ReversalOfReferenceNumber,
+    long? ReversedByReferenceNumber,
+    string? ReversalReason,
+    int RowNumber,
+    string AccountClassCode,
+    string GeneralAccountCode,
+    string SubsidiaryAccountCode,
+    string DetailAccountCode,
+    string Side,
+    decimal Amount,
+    string LineDescription);

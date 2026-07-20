@@ -1,4 +1,5 @@
 using Apex.Application.Abstractions.Exceptions;
+using Apex.Application.Abstractions.Data;
 using Apex.IntegrationTests.Common;
 using Apex.Modules.Accounting.AccountingBooks.UseCases.ActivateAccountingBook;
 using Apex.Modules.Accounting.AccountingBooks.UseCases.CreateAccountingBook;
@@ -10,6 +11,7 @@ using Apex.Modules.Accounting.FiscalYears.UseCases.CreateFiscalYear;
 using Apex.Modules.Accounting.FiscalYears.UseCases.OpenFiscalYear;
 using Apex.Modules.Accounting.FiscalYears.UseCases.FinalizeFiscalYear;
 using Apex.Modules.Accounting.FiscalYears.UseCases.GetFiscalYear;
+using Apex.Modules.Accounting.FiscalYears.UseCases.CancelFiscalYear;
 using Apex.Modules.Accounting.JournalEntries.Domain;
 using Apex.Modules.Accounting.JournalEntries.Repositories;
 using Apex.Modules.Accounting.JournalEntries.UseCases;
@@ -18,6 +20,12 @@ using Apex.Modules.Accounting.JournalEntries.UseCases.PostJournalEntry;
 using Apex.Modules.Accounting.JournalEntries.UseCases.GetJournalEntry;
 using Apex.Modules.Accounting.JournalEntries.UseCases.ReverseJournalEntry;
 using Apex.Modules.Accounting.JournalEntries.UseCases.SearchJournalEntries;
+using Apex.Modules.Accounting.JournalEntries.UseCases.RebuildJournalEntryProjections;
+using Apex.Modules.Accounting.JournalEntries.UseCases.ReconcileJournalEntryProjections;
+using Apex.Modules.Accounting.JournalEntries.UseCases.GetTrialBalance;
+using Apex.Modules.Accounting.JournalEntries.UseCases.GetCrossFiscalYearTurnover;
+using Apex.Modules.Accounting.JournalEntries.UseCases.GetTransactionReport;
+using Apex.Modules.Accounting.JournalEntries.UseCases.GetJournalEntryAudit;
 using Microsoft.Extensions.DependencyInjection;
 using Dapper;
 
@@ -573,6 +581,204 @@ public sealed class JournalEntryPostingTests(ApexIntegrationTestFixture fixture)
         Assert.Equal(JournalEntryErrors.InvalidFinalizationDate, exception.ErrorCode);
     }
 
+    [Fact]
+    public async Task ReconcileAndRebuild_DetectsAndRepairsProjectionDrift()
+    {
+        await ResetDatabasesAsync();
+        await using var scope = await CreateScopeAsync();
+        var setup = await SetupAsync(scope, "JE-REBUILD", "je-rebuild");
+        var created = await CreateAsync(scope, setup, BalanceEffect.Financial);
+        await scope.Services.GetRequiredService<PostJournalEntryHandler>()
+            .HandleAsync(setup.FiscalYearId, created.Id);
+        var reconcile = scope.Services.GetRequiredService<ReconcileJournalEntryProjectionsHandler>();
+        Assert.True((await reconcile.HandleAsync(setup.FiscalYearId)).IsReconciled);
+        await using (var connection = CreateShardConnection())
+        {
+            await connection.OpenAsync();
+            await connection.ExecuteAsync(
+                "UPDATE daily_account_balance SET net_change = net_change + 7 WHERE fiscal_year_id = @FiscalYearId",
+                new { setup.FiscalYearId });
+        }
+
+        var drift = await reconcile.HandleAsync(setup.FiscalYearId);
+        Assert.False(drift.IsReconciled);
+        Assert.Contains(drift.Mismatches, mismatch => mismatch.Projection == "BALANCE");
+        await scope.Services.GetRequiredService<RebuildJournalEntryProjectionsHandler>().HandleAsync(
+            setup.FiscalYearId, new RebuildJournalEntryProjectionsRequest());
+
+        Assert.True((await reconcile.HandleAsync(setup.FiscalYearId)).IsReconciled);
+        Assert.Equal(100m, await scope.Services.GetRequiredService<IJournalEntryProjectionReadRepository>()
+            .GetClosingBalanceAsOfAsync(
+                setup.BookId, setup.FiscalYearId, AccountingDate, setup.ClassCode,
+                setup.GeneralCode, setup.DebitSubCode, null));
+    }
+
+    [Fact]
+    public async Task TrialBalance_AppliesOpeningAndDocumentTypeExclusionsConsistently()
+    {
+        await ResetDatabasesAsync();
+        await using var scope = await CreateScopeAsync();
+        var setup = await SetupAsync(scope, "JE-TRIAL", "je-trial");
+        var opening = await scope.Services.GetRequiredService<CreateDraftJournalEntryHandler>()
+            .HandleAsync(Request(setup, BalanceEffect.Financial, 100m, 100m,
+                AccountingDate, "OPENING"));
+        var movement = await scope.Services.GetRequiredService<CreateDraftJournalEntryHandler>()
+            .HandleAsync(Request(setup, BalanceEffect.Financial, 50m, 50m,
+                AccountingDate.AddDays(1)));
+        var post = scope.Services.GetRequiredService<PostJournalEntryHandler>();
+        await post.HandleAsync(setup.FiscalYearId, opening.Id);
+        await post.HandleAsync(setup.FiscalYearId, movement.Id);
+        var handler = scope.Services.GetRequiredService<GetTrialBalanceHandler>();
+
+        var complete = await handler.HandleAsync(new GetTrialBalanceRequest
+        {
+            AccountingBookId = setup.BookId,
+            FiscalYearId = setup.FiscalYearId,
+            FromDate = AccountingDate.AddDays(1),
+            ToDate = AccountingDate.AddDays(1)
+        });
+        var debit = Assert.Single(complete, item => item.SubsidiaryAccountCode == setup.DebitSubCode);
+        Assert.Equal(100m, debit.OpeningBalance);
+        Assert.Equal(50m, debit.DebitTurnover);
+        Assert.Equal(150m, debit.ClosingBalance);
+
+        var excluded = await handler.HandleAsync(new GetTrialBalanceRequest
+        {
+            AccountingBookId = setup.BookId,
+            FiscalYearId = setup.FiscalYearId,
+            FromDate = AccountingDate.AddDays(1),
+            ToDate = AccountingDate.AddDays(1),
+            ExcludedDocumentTypes = ["OPENING"]
+        });
+        var filteredDebit = Assert.Single(excluded,
+            item => item.SubsidiaryAccountCode == setup.DebitSubCode);
+        Assert.Equal(0m, filteredDebit.OpeningBalance);
+        Assert.Equal(50m, filteredDebit.ClosingBalance);
+    }
+
+    [Fact]
+    public async Task CrossFiscalYearTurnover_FailsWholeRequestWhenAnyShardCannotBeResolved()
+    {
+        await ResetDatabasesAsync();
+        await using var scope = await CreateScopeAsync();
+        var setup = await SetupAsync(scope, "JE-CROSS-FY", "je-cross-fy");
+        var created = await CreateAsync(scope, setup, BalanceEffect.Financial);
+        await scope.Services.GetRequiredService<PostJournalEntryHandler>()
+            .HandleAsync(setup.FiscalYearId, created.Id);
+        var handler = scope.Services.GetRequiredService<GetCrossFiscalYearTurnoverHandler>();
+
+        var valid = await handler.HandleAsync(new GetCrossFiscalYearTurnoverRequest
+        {
+            AccountingBookId = setup.BookId,
+            FiscalYearIds = [setup.FiscalYearId],
+            FromDate = AccountingDate,
+            ToDate = AccountingDate
+        });
+        Assert.Contains(valid, item => item.DebitTurnover == 100m);
+
+        await Assert.ThrowsAsync<ShardAssignmentNotFoundException>(() => handler.HandleAsync(
+            new GetCrossFiscalYearTurnoverRequest
+            {
+                AccountingBookId = setup.BookId,
+                FiscalYearIds = [setup.FiscalYearId, 9_999_999_999_999],
+                FromDate = AccountingDate,
+                ToDate = AccountingDate
+            }));
+    }
+
+    [Fact]
+    public async Task CrossFiscalYearTurnover_MergesExplicitFiscalYearShards()
+    {
+        await ResetDatabasesAsync();
+        await using var scope = await CreateScopeAsync();
+        var first = await SetupAsync(scope, "JE-CROSS-MERGE", "je-cross-merge");
+        var firstDate = new DateOnly(2026, 1, 1);
+        var firstEntry = await scope.Services.GetRequiredService<CreateDraftJournalEntryHandler>()
+            .HandleAsync(Request(first, BalanceEffect.Financial, 100m, 100m, firstDate));
+        await scope.Services.GetRequiredService<PostJournalEntryHandler>()
+            .HandleAsync(first.FiscalYearId, firstEntry.Id);
+        await scope.Services.GetRequiredService<FinalizeFiscalYearHandler>().HandleAsync(
+            first.FiscalYearId,
+            new FinalizeFiscalYearRequest { FinalizedThroughDate = firstDate });
+        await scope.Services.GetRequiredService<CancelFiscalYearHandler>().HandleAsync(
+            first.FiscalYearId,
+            new CancelFiscalYearRequest { CancellationDate = firstDate });
+
+        var secondFiscalYear = await scope.Services.GetRequiredService<CreateFiscalYearHandler>().HandleAsync(
+            new CreateFiscalYearRequest
+            {
+                AccountingBookId = first.BookId,
+                Title = "Remaining 2026",
+                StartDate = firstDate.AddDays(1),
+                EndDate = new DateOnly(2026, 12, 31)
+            });
+        await scope.Services.GetRequiredService<OpenFiscalYearHandler>()
+            .HandleAsync(secondFiscalYear.Id);
+        var second = first with { FiscalYearId = secondFiscalYear.Id };
+        var secondEntry = await scope.Services.GetRequiredService<CreateDraftJournalEntryHandler>()
+            .HandleAsync(Request(second, BalanceEffect.Financial, 40m, 40m, firstDate.AddDays(1)));
+        await scope.Services.GetRequiredService<PostJournalEntryHandler>()
+            .HandleAsync(second.FiscalYearId, secondEntry.Id);
+
+        var rows = await scope.Services.GetRequiredService<GetCrossFiscalYearTurnoverHandler>()
+            .HandleAsync(new GetCrossFiscalYearTurnoverRequest
+            {
+                AccountingBookId = first.BookId,
+                FiscalYearIds = [first.FiscalYearId, second.FiscalYearId],
+                FromDate = firstDate,
+                ToDate = firstDate.AddDays(1)
+            });
+
+        var debit = Assert.Single(rows, row => row.SubsidiaryAccountCode == first.DebitSubCode);
+        Assert.Equal(140m, debit.DebitTurnover);
+        Assert.Equal(140m, debit.NetTurnover);
+    }
+
+    [Fact]
+    public async Task TransactionAndAuditReports_PreserveLinesAndReversalHistory()
+    {
+        await ResetDatabasesAsync();
+        await using var scope = await CreateScopeAsync();
+        var setup = await SetupAsync(scope, "JE-REPORT-DETAIL", "je-report-detail");
+        var created = await CreateAsync(scope, setup, BalanceEffect.Financial);
+        var original = await scope.Services.GetRequiredService<PostJournalEntryHandler>()
+            .HandleAsync(setup.FiscalYearId, created.Id);
+        var reversal = await scope.Services.GetRequiredService<ReverseJournalEntryHandler>().HandleAsync(
+            setup.FiscalYearId, original.ReferenceNumber,
+            new ReverseJournalEntryRequest
+            {
+                AccountingDate = AccountingDate.AddDays(1),
+                ReversalReason = "Report correction"
+            });
+
+        var transactions = await scope.Services.GetRequiredService<GetTransactionReportHandler>()
+            .HandleAsync(new GetTransactionReportRequest
+            {
+                AccountingBookId = setup.BookId,
+                FiscalYearId = setup.FiscalYearId,
+                FromDate = AccountingDate,
+                ToDate = AccountingDate.AddDays(1),
+                Page = 1,
+                PageSize = 20
+            });
+        Assert.Equal(4, transactions.Count);
+        Assert.Equal([1, 2], transactions.Where(item => item.EntryId == original.Id)
+            .Select(item => item.RowNumber).ToArray());
+
+        var audit = await scope.Services.GetRequiredService<GetJournalEntryAuditHandler>()
+            .HandleAsync(new GetJournalEntryAuditRequest
+            {
+                AccountingBookId = setup.BookId,
+                FiscalYearId = setup.FiscalYearId,
+                ReferenceNumber = original.ReferenceNumber
+            });
+        Assert.Equal(2, audit.Count);
+        Assert.Contains(audit, item => item.Id == original.Id
+            && item.ReversedByReferenceNumber == reversal.ReferenceNumber);
+        Assert.Contains(audit, item => item.Id == reversal.Id
+            && item.ReversalOfReferenceNumber == original.ReferenceNumber);
+    }
+
     private async Task<JournalEntryDetailResponse> CreateAsync(
         ServiceScopeHandle scope, AccountSetup setup, BalanceEffect balanceEffect) =>
         await scope.Services.GetRequiredService<CreateDraftJournalEntryHandler>()
@@ -580,13 +786,13 @@ public sealed class JournalEntryPostingTests(ApexIntegrationTestFixture fixture)
 
     private static CreateDraftJournalEntryRequest Request(
         AccountSetup setup, BalanceEffect balanceEffect, decimal debitAmount, decimal creditAmount,
-        DateOnly? accountingDate = null) => new()
+        DateOnly? accountingDate = null, string documentType = "GENERAL") => new()
         {
             AccountingBookId = setup.BookId,
             FiscalYearId = setup.FiscalYearId,
             AccountingDate = accountingDate ?? AccountingDate,
             Description = "entry",
-            DocumentType = "GENERAL",
+            DocumentType = documentType,
             InsertionType = "MANUAL",
             BalanceEffect = balanceEffect.ToDatabaseValue(),
             Lines =
