@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text.Encodings.Web;
+using Apex.Application.Abstractions.Data;
 using Apex.DatabaseMigrator.Migrations;
 using Dapper;
 using Microsoft.AspNetCore.Authentication;
@@ -9,6 +10,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Testcontainers.MsSql;
@@ -25,11 +27,20 @@ public class ApexWebApplicationFactory : WebApplicationFactory<Program>, IAsyncL
 
     public string ShardConnectionString { get; private set; } = null!;
 
+    public string ShardTwoConnectionString { get; private set; } = null!;
+
+    public const string ShardOneConnectionName = "AccountingShard01";
+    public const string ShardTwoConnectionName = "AccountingShard02";
+
+    private readonly object _nextShardLock = new();
+    private string? _nextShardConnectionName;
+
     public async Task InitializeAsync()
     {
         await _sqlContainer.StartAsync();
         RunMigrations();
-        ShardConnectionString = await CreateShardDatabaseAsync();
+        ShardConnectionString = await CreateShardDatabaseAsync("ApexShardOne", "SHARD_ONE");
+        ShardTwoConnectionString = await CreateShardDatabaseAsync("ApexShardTwo", "SHARD_TWO");
         await SeedShardCatalogAsync();
     }
 
@@ -37,6 +48,36 @@ public class ApexWebApplicationFactory : WebApplicationFactory<Program>, IAsyncL
     {
         await _sqlContainer.DisposeAsync();
         await base.DisposeAsync();
+    }
+
+    public void SelectShardForNextFiscalYear(string connectionName)
+    {
+        if (connectionName is not (ShardOneConnectionName or ShardTwoConnectionName))
+            throw new ArgumentException("Unknown Accounting test shard.", nameof(connectionName));
+
+        lock (_nextShardLock)
+        {
+            if (_nextShardConnectionName is not null)
+                throw new InvalidOperationException("A shard selection is already queued.");
+
+            _nextShardConnectionName = connectionName;
+        }
+    }
+
+    internal string ConsumeNextShardConnectionName()
+    {
+        lock (_nextShardLock)
+        {
+            var selected = _nextShardConnectionName ?? ShardOneConnectionName;
+            _nextShardConnectionName = null;
+            return selected;
+        }
+    }
+
+    public void InvalidateFiscalYearRouting(long fiscalYearId)
+    {
+        Services.GetRequiredService<IShardResolver>().Invalidate(
+            new ShardKey("FiscalYear", fiscalYearId.ToString(System.Globalization.CultureInfo.InvariantCulture)));
     }
 
     public async Task ResetAccountingDatabaseAsync()
@@ -72,9 +113,17 @@ public class ApexWebApplicationFactory : WebApplicationFactory<Program>, IAsyncL
         );
     }
 
-    public async Task ResetShardDatabaseAsync()
+    public Task ResetShardDatabaseAsync() => ResetShardDatabasesAsync();
+
+    public async Task ResetShardDatabasesAsync()
     {
-        await using var connection = new SqlConnection(ShardConnectionString);
+        await ResetShardDatabaseAsync(ShardConnectionString);
+        await ResetShardDatabaseAsync(ShardTwoConnectionString);
+    }
+
+    private static async Task ResetShardDatabaseAsync(string connectionString)
+    {
+        await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync();
         await connection.ExecuteAsync(
             @"
@@ -107,7 +156,8 @@ public class ApexWebApplicationFactory : WebApplicationFactory<Program>, IAsyncL
                         ["Sharding:GeneralConnectionStringName"] = "GeneralDb",
                         ["Sharding:RequiredSchemaVersion"] = "1",
                         ["ConnectionStrings:GeneralDb"] = AccountingConnectionString,
-                        ["ConnectionStrings:AccountingShard01"] = ShardConnectionString,
+                        [$"ConnectionStrings:{ShardOneConnectionName}"] = ShardConnectionString,
+                        [$"ConnectionStrings:{ShardTwoConnectionName}"] = ShardTwoConnectionString,
                     }
                 );
             }
@@ -115,6 +165,12 @@ public class ApexWebApplicationFactory : WebApplicationFactory<Program>, IAsyncL
 
         builder.ConfigureTestServices(services =>
         {
+            services.RemoveAll<IShardAssignmentProvisioner>();
+            services.AddSingleton<IShardAssignmentProvisioner>(serviceProvider =>
+                new TestShardAssignmentProvisioner(
+                    AccountingConnectionString,
+                    this,
+                    serviceProvider.GetRequiredService<Apex.Application.Abstractions.Time.IClock>()));
             services
                 .AddAuthentication(options =>
                 {
@@ -136,23 +192,29 @@ public class ApexWebApplicationFactory : WebApplicationFactory<Program>, IAsyncL
             throw new InvalidOperationException("Database migration failed.", result.Error);
     }
 
-    private async Task<string> CreateShardDatabaseAsync()
+    private async Task<string> CreateShardDatabaseAsync(string databaseName, string marker)
     {
         var builder = new SqlConnectionStringBuilder(AccountingConnectionString)
         {
-            InitialCatalog = "ApexShardOne"
+            InitialCatalog = databaseName
         };
 
         await using (var connection = new SqlConnection(AccountingConnectionString))
         {
             await connection.OpenAsync();
-            await connection.ExecuteAsync("CREATE DATABASE [ApexShardOne]");
+            await connection.ExecuteAsync($"CREATE DATABASE [{databaseName}]");
         }
 
         var connectionString = builder.ConnectionString;
         var result = DatabaseMigrationRunner.RunShardMigrations(connectionString);
         if (!result.Successful)
             throw new InvalidOperationException("Shard migration failed.", result.Error);
+
+        await using var shard = new SqlConnection(connectionString);
+        await shard.OpenAsync();
+        await shard.ExecuteAsync("CREATE TABLE shard_marker (name VARCHAR(50) NOT NULL)");
+        await shard.ExecuteAsync(
+            "INSERT INTO shard_marker(name) VALUES (@Marker)", new { Marker = marker });
         return connectionString;
     }
 
@@ -164,6 +226,8 @@ public class ApexWebApplicationFactory : WebApplicationFactory<Program>, IAsyncL
             """
             INSERT INTO Shards (id, connection_name, status, schema_version, created_at, modified_at)
             VALUES ('shard-accounting-01', 'AccountingShard01', 'ACTIVE', '1',
+                    SYSUTCDATETIME(), SYSUTCDATETIME()),
+                   ('shard-accounting-02', 'AccountingShard02', 'ACTIVE', '1',
                     SYSUTCDATETIME(), SYSUTCDATETIME())
             """);
     }
