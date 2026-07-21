@@ -1,7 +1,7 @@
 -- Financial reporting projections for Journal Entries. Derived, disposable, and rebuildable
 -- read models; only posted FINANCIAL entries contribute. Both projections are shard-resident so
--- they stay atomic with posting. No-detail rows use an empty-string sentinel (never NULL) so the
--- logical grain uniqueness holds under SQL NULL semantics.
+-- they stay atomic with posting. Every ledger line carries a required Detail Account Code, so the
+-- detail_account_code column is a mandatory part of each projection's logical grain.
 
 CREATE TABLE daily_account_turnover (
     accounting_book_id BIGINT NOT NULL,

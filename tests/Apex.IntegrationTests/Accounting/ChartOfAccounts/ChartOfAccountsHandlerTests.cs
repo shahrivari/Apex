@@ -73,7 +73,7 @@ public sealed class ChartOfAccountsHandlerTests(ApexIntegrationTestFixture fixtu
         Assert.Equal("account_code_already_exists", duplicate.ErrorCode);
         var general = await s.GetRequiredService<CreateGeneralAccountHandler>().HandleAsync(new(root.Id, "G", "G", AccountNature.Neutral), default);
         await s.GetRequiredService<ArchiveGeneralAccountHandler>().HandleAsync(general.Id, default);
-        var error = await Assert.ThrowsAsync<BusinessRuleException>(() => s.GetRequiredService<CreateSubsidiaryAccountHandler>().HandleAsync(new(general.Id, "S", "S", AccountNature.Neutral, DetailAccountType.None), default));
+        var error = await Assert.ThrowsAsync<BusinessRuleException>(() => s.GetRequiredService<CreateSubsidiaryAccountHandler>().HandleAsync(new(general.Id, "S", "S", AccountNature.Neutral, DetailAccountType.Person), default));
         Assert.Equal("account_parent_inactive", error.ErrorCode);
     }
 

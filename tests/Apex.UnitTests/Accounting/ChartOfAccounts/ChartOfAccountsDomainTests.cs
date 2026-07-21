@@ -31,7 +31,7 @@ public sealed class ChartOfAccountsDomainTests
     {
         Assert.Throws<BusinessRuleException>(() => AccountClass.Create(1, new string('A', 65), "Name", Now));
         Assert.Throws<BusinessRuleException>(() => GeneralAccount.Create(2, 1, new string('G', 3), "Name", AccountNature.Debtor, Now));
-        Assert.Throws<BusinessRuleException>(() => SubsidiaryAccount.Create(3, 2, new string('S', 3), "Name", AccountNature.Debtor, DetailAccountType.None, Now));
+        Assert.Throws<BusinessRuleException>(() => SubsidiaryAccount.Create(3, 2, new string('S', 3), "Name", AccountNature.Debtor, DetailAccountType.Person, Now));
         Assert.Throws<BusinessRuleException>(() => AccountClass.Create(1, "A", new string('N', 256), Now));
     }
 

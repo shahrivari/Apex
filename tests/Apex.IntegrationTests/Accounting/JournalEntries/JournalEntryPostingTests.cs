@@ -7,6 +7,7 @@ using Apex.Modules.Accounting.ChartOfAccounts.Domain;
 using Apex.Modules.Accounting.ChartOfAccounts.UseCases.CreateAccountClass;
 using Apex.Modules.Accounting.ChartOfAccounts.UseCases.CreateGeneralAccount;
 using Apex.Modules.Accounting.ChartOfAccounts.UseCases.CreateSubsidiaryAccount;
+using Apex.Modules.Accounting.DetailAccounts.UseCases.CreateDetailAccount;
 using Apex.Modules.Accounting.FiscalYears.UseCases.CreateFiscalYear;
 using Apex.Modules.Accounting.FiscalYears.UseCases.OpenFiscalYear;
 using Apex.Modules.Accounting.FiscalYears.UseCases.FinalizeFiscalYear;
@@ -54,10 +55,10 @@ public sealed class JournalEntryPostingTests(ApexIntegrationTestFixture fixture)
         var projections = scope.Services.GetRequiredService<IJournalEntryProjectionReadRepository>();
         var debitTurnover = await projections.GetTurnoverAsync(
             setup.BookId, setup.FiscalYearId, AccountingDate, setup.ClassCode, setup.GeneralCode,
-            setup.DebitSubCode, null, "GENERAL");
+            setup.DebitSubCode, LineDetailCode, "GENERAL");
         var creditTurnover = await projections.GetTurnoverAsync(
             setup.BookId, setup.FiscalYearId, AccountingDate, setup.ClassCode, setup.GeneralCode,
-            setup.CreditSubCode, null, "GENERAL");
+            setup.CreditSubCode, LineDetailCode, "GENERAL");
 
         Assert.NotNull(debitTurnover);
         Assert.Equal(100m, debitTurnover.DebitTurnover);
@@ -69,10 +70,10 @@ public sealed class JournalEntryPostingTests(ApexIntegrationTestFixture fixture)
 
         var debitBalance = await projections.GetClosingBalanceAsOfAsync(
             setup.BookId, setup.FiscalYearId, AccountingDate, setup.ClassCode, setup.GeneralCode,
-            setup.DebitSubCode, null);
+            setup.DebitSubCode, LineDetailCode);
         var creditBalance = await projections.GetClosingBalanceAsOfAsync(
             setup.BookId, setup.FiscalYearId, AccountingDate, setup.ClassCode, setup.GeneralCode,
-            setup.CreditSubCode, null);
+            setup.CreditSubCode, LineDetailCode);
         Assert.Equal(100m, debitBalance);
         Assert.Equal(-100m, creditBalance);
     }
@@ -92,10 +93,10 @@ public sealed class JournalEntryPostingTests(ApexIntegrationTestFixture fixture)
         var projections = scope.Services.GetRequiredService<IJournalEntryProjectionReadRepository>();
         Assert.Null(await projections.GetTurnoverAsync(
             setup.BookId, setup.FiscalYearId, AccountingDate, setup.ClassCode, setup.GeneralCode,
-            setup.DebitSubCode, null, "GENERAL"));
+            setup.DebitSubCode, LineDetailCode, "GENERAL"));
         Assert.Equal(0m, await projections.GetClosingBalanceAsOfAsync(
             setup.BookId, setup.FiscalYearId, AccountingDate, setup.ClassCode, setup.GeneralCode,
-            setup.DebitSubCode, null));
+            setup.DebitSubCode, LineDetailCode));
     }
 
     [Fact]
@@ -155,7 +156,7 @@ public sealed class JournalEntryPostingTests(ApexIntegrationTestFixture fixture)
         Assert.Equal(JournalEntryErrors.DraftRequired, exception.ErrorCode);
         var turnover = await scope.Services.GetRequiredService<IJournalEntryProjectionReadRepository>()
             .GetTurnoverAsync(setup.BookId, setup.FiscalYearId, AccountingDate, setup.ClassCode,
-                setup.GeneralCode, setup.DebitSubCode, null, "GENERAL");
+                setup.GeneralCode, setup.DebitSubCode, LineDetailCode, "GENERAL");
         Assert.Equal(100m, turnover!.DebitTurnover);
     }
 
@@ -189,10 +190,10 @@ public sealed class JournalEntryPostingTests(ApexIntegrationTestFixture fixture)
         var projections = scope.Services.GetRequiredService<IJournalEntryProjectionReadRepository>();
         Assert.Equal(0m, await projections.GetClosingBalanceAsOfAsync(
             setup.BookId, setup.FiscalYearId, reversalDate, setup.ClassCode, setup.GeneralCode,
-            setup.DebitSubCode, null));
+            setup.DebitSubCode, LineDetailCode));
         Assert.Equal(0m, await projections.GetClosingBalanceAsOfAsync(
             setup.BookId, setup.FiscalYearId, reversalDate, setup.ClassCode, setup.GeneralCode,
-            setup.CreditSubCode, null));
+            setup.CreditSubCode, LineDetailCode));
     }
 
     [Fact]
@@ -219,7 +220,7 @@ public sealed class JournalEntryPostingTests(ApexIntegrationTestFixture fixture)
         Assert.Equal(0m, await scope.Services.GetRequiredService<IJournalEntryProjectionReadRepository>()
             .GetClosingBalanceAsOfAsync(
                 setup.BookId, setup.FiscalYearId, request.AccountingDate, setup.ClassCode,
-                setup.GeneralCode, setup.DebitSubCode, null));
+                setup.GeneralCode, setup.DebitSubCode, LineDetailCode));
     }
 
     [Fact]
@@ -244,10 +245,10 @@ public sealed class JournalEntryPostingTests(ApexIntegrationTestFixture fixture)
         var projections = scope.Services.GetRequiredService<IJournalEntryProjectionReadRepository>();
         Assert.Null(await projections.GetTurnoverAsync(
             setup.BookId, setup.FiscalYearId, reversal.AccountingDate, setup.ClassCode,
-            setup.GeneralCode, setup.DebitSubCode, null, "GENERAL"));
+            setup.GeneralCode, setup.DebitSubCode, LineDetailCode, "GENERAL"));
         Assert.Equal(0m, await projections.GetClosingBalanceAsOfAsync(
             setup.BookId, setup.FiscalYearId, reversal.AccountingDate, setup.ClassCode,
-            setup.GeneralCode, setup.DebitSubCode, null));
+            setup.GeneralCode, setup.DebitSubCode, LineDetailCode));
     }
 
     [Fact]
@@ -355,7 +356,7 @@ public sealed class JournalEntryPostingTests(ApexIntegrationTestFixture fixture)
             .GetRequiredService<IJournalEntryProjectionReadRepository>()
             .GetClosingBalanceAsOfAsync(
                 setup.BookId, setup.FiscalYearId, AccountingDate.AddDays(1), setup.ClassCode,
-                setup.GeneralCode, setup.DebitSubCode, null));
+                setup.GeneralCode, setup.DebitSubCode, LineDetailCode));
     }
 
     [Fact]
@@ -610,7 +611,7 @@ public sealed class JournalEntryPostingTests(ApexIntegrationTestFixture fixture)
         Assert.Equal(100m, await scope.Services.GetRequiredService<IJournalEntryProjectionReadRepository>()
             .GetClosingBalanceAsOfAsync(
                 setup.BookId, setup.FiscalYearId, AccountingDate, setup.ClassCode,
-                setup.GeneralCode, setup.DebitSubCode, null));
+                setup.GeneralCode, setup.DebitSubCode, LineDetailCode));
     }
 
     [Fact]
@@ -802,6 +803,10 @@ public sealed class JournalEntryPostingTests(ApexIntegrationTestFixture fixture)
         ]
         };
 
+    // A Detail Account code is mandatory on every line. Tests build their chart via SetupAsync,
+    // which declares PERSON subsidiary accounts and seeds the matching "DET-1" Detail Account.
+    private const string LineDetailCode = "DET-1";
+
     private static JournalEntryLineRequest Line(
         string side, decimal amount, string classCode, string generalCode, string subCode) => new()
         {
@@ -810,6 +815,7 @@ public sealed class JournalEntryPostingTests(ApexIntegrationTestFixture fixture)
             AccountClassCode = classCode,
             GeneralAccountCode = generalCode,
             SubsidiaryAccountCode = subCode,
+            DetailAccountCode = LineDetailCode,
             Description = "line"
         };
 
@@ -828,11 +834,13 @@ public sealed class JournalEntryPostingTests(ApexIntegrationTestFixture fixture)
         var general = await s.GetRequiredService<CreateGeneralAccountHandler>()
             .HandleAsync(new CreateGeneralAccountRequest(accountClass.Id, "01", "Cash", AccountNature.Debtor), default);
         var debit = await s.GetRequiredService<CreateSubsidiaryAccountHandler>().HandleAsync(
-            new CreateSubsidiaryAccountRequest(general.Id, "01", "Debit", AccountNature.Debtor, DetailAccountType.None),
+            new CreateSubsidiaryAccountRequest(general.Id, "01", "Debit", AccountNature.Debtor, DetailAccountType.Person),
             default);
         var credit = await s.GetRequiredService<CreateSubsidiaryAccountHandler>().HandleAsync(
-            new CreateSubsidiaryAccountRequest(general.Id, "02", "Credit", AccountNature.Creditor, DetailAccountType.None),
+            new CreateSubsidiaryAccountRequest(general.Id, "02", "Credit", AccountNature.Creditor, DetailAccountType.Person),
             default);
+        await s.GetRequiredService<CreateDetailAccountHandler>()
+            .HandleAsync(new CreateDetailAccountRequest(LineDetailCode, "Standard Detail", "PERSON"), default);
         return new AccountSetup(bookId, fiscalYearId, accountClass.Code, general.Code, debit.Code, credit.Code);
     }
 

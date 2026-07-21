@@ -37,7 +37,7 @@ public sealed class JournalEntryRepositoryContractTests(ApexIntegrationTestFixtu
                 BalanceEffect.Financial, "MIGRATION", "SRC-1",
                 [
                     new JournalEntryLineInput(
-                        context.IdGenerator.NewId(), JournalEntrySide.Debit, 150.25m, "1", "01", "01", null, "debit"),
+                        context.IdGenerator.NewId(), JournalEntrySide.Debit, 150.25m, "1", "01", "01", "D-050", "debit"),
                     new JournalEntryLineInput(
                         context.IdGenerator.NewId(), JournalEntrySide.Credit, 150.25m, "2", "02", "02", "D-100", "credit")
                 ], RegisteredAt);
@@ -67,7 +67,7 @@ public sealed class JournalEntryRepositoryContractTests(ApexIntegrationTestFixtu
         Assert.Equal([1, 2], model.Lines.Select(l => l.RowNumber).ToArray());
         Assert.Equal(150.25m, model.Lines[0].Amount);
         Assert.Equal("DEBIT", model.Lines[0].Side);
-        Assert.Null(model.Lines[0].DetailAccountCode);
+        Assert.Equal("D-050", model.Lines[0].DetailAccountCode);
         Assert.Equal("D-100", model.Lines[1].DetailAccountCode);
     }
 
@@ -122,8 +122,8 @@ public sealed class JournalEntryRepositoryContractTests(ApexIntegrationTestFixtu
             context.IdGenerator.NewId(), bookId, fiscalYearId, referenceNumber, number, AccountingDate, RegisteredAt,
             "entry", DocumentType.General, InsertionType.Manual, balanceEffect, null, null,
             [
-                new JournalEntryLineInput(context.IdGenerator.NewId(), JournalEntrySide.Debit, 5m, "1", "01", "01", null, "d"),
-                new JournalEntryLineInput(context.IdGenerator.NewId(), JournalEntrySide.Credit, 5m, "1", "01", "01", null, "c")
+                new JournalEntryLineInput(context.IdGenerator.NewId(), JournalEntrySide.Debit, 5m, "1", "01", "01", "D-1", "d"),
+                new JournalEntryLineInput(context.IdGenerator.NewId(), JournalEntrySide.Credit, 5m, "1", "01", "01", "D-1", "c")
             ], RegisteredAt);
 
     private async Task ResetDatabasesAsync()

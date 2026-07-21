@@ -168,12 +168,14 @@ public sealed class JournalEntryHttpTests : IAsyncLifetime
             new JournalEntryLineRequest
             {
                 Side = "DEBIT", Amount = 100m,
-                AccountClassCode = "1", GeneralAccountCode = "01", SubsidiaryAccountCode = "01", Description = "debit"
+                AccountClassCode = "1", GeneralAccountCode = "01", SubsidiaryAccountCode = "01",
+                DetailAccountCode = "D-1", Description = "debit"
             },
             new JournalEntryLineRequest
             {
                 Side = "CREDIT", Amount = 100m,
-                AccountClassCode = "1", GeneralAccountCode = "01", SubsidiaryAccountCode = "01", Description = "credit"
+                AccountClassCode = "1", GeneralAccountCode = "01", SubsidiaryAccountCode = "01",
+                DetailAccountCode = "D-1", Description = "credit"
             }
         ]
     };

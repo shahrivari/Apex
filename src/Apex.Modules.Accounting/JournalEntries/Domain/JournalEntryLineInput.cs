@@ -12,6 +12,6 @@ public sealed record JournalEntryLineInput(
     string AccountClassCode,
     string GeneralAccountCode,
     string SubsidiaryAccountCode,
-    string? DetailAccountCode,
+    string DetailAccountCode,
     string Description,
     int? RowNumber = null);

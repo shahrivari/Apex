@@ -11,7 +11,7 @@ public sealed record JournalEntryLineResponse(
     string AccountClassCode,
     string GeneralAccountCode,
     string SubsidiaryAccountCode,
-    string? DetailAccountCode,
+    string DetailAccountCode,
     string Description)
 {
     internal static JournalEntryLineResponse From(JournalEntryLine line) => new(

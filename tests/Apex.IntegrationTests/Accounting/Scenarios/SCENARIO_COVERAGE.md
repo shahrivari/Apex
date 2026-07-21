@@ -132,8 +132,8 @@ posting — most tests exercise `CreateDraftEntryAsync` directly.
 
 | ID | Test method | Rule / error code | Status | Justification |
 | --- | --- | --- | --- | --- |
-| DETAIL-001 | `NoneRequirement_ShouldAcceptLineWithoutDetailAccount` | green path | Implemented | |
-| DETAIL-002 | `NoneRequirement_ShouldRejectSuppliedDetailAccount` | 422 `detail_account_not_allowed` | Implemented | |
+| DETAIL-001 | — | (retired) | Removed | A Detail Account is now mandatory on every line; the "no detail account required" (`NONE`) requirement was removed, so a line without a Detail Account is no longer a valid case to cover. |
+| DETAIL-002 | — | (retired) | Removed | Same removal of `NONE`: `detail_account_not_allowed` no longer exists — a supplied Detail Account is never rejected for being "not allowed". |
 | DETAIL-003 | `BankRequirement_ShouldAcceptAnActiveBankDetailAccount` | green path | Implemented | |
 | DETAIL-004 | `BankRequirement_ShouldRejectPersonAndSymbolDetailAccounts` | 422 `detail_account_type_mismatch` (×2) | Implemented | |
 | DETAIL-005 | `PersonRequirement_ShouldAcceptPersonAndRejectBankAndSymbol` | green + 422 `detail_account_type_mismatch` (×2) | Implemented | |

@@ -93,9 +93,9 @@ Nature supports validation, balance interpretation, and reporting. It does not r
 
 ### Detail-Account Type
 
-The kind of Detail Account that a Subsidiary Account accepts:
+The kind of Detail Account that a Subsidiary Account requires. Every Subsidiary Account requires
+one of these types; a Subsidiary Account that accepts no Detail Account is not supported.
 
-- `NONE`
 - `BANK`
 - `SYMBOL`
 - `PERSON`
@@ -147,7 +147,7 @@ The account is retained for history and reporting but is unavailable for new led
 | Code | Stable identifier within its General Account |
 | Name | Human-readable account name |
 | Nature | Debtor, creditor, or neutral orientation |
-| Detail-account type | Required type of Detail Account, or `NONE` |
+| Detail-account type | Required type of Detail Account |
 | Status | Current lifecycle state |
 | Created at | Time at which the account was created |
 | Updated at | Time of its most recent change |
@@ -169,8 +169,8 @@ The following rules must always hold:
 10. A Subsidiary Account cannot exist without its General Account.
 11. Only Subsidiary Accounts may receive ledger postings.
 12. A Subsidiary Account declares exactly one Detail-Account Type.
-13. `NONE` means that ledger lines using the Subsidiary Account must not reference a Detail Account.
-14. Any other Detail-Account Type means that ledger lines must reference a Detail Account of that exact type.
+13. Ledger lines using the Subsidiary Account must reference a Detail Account of that exact type.
+14. A ledger line without a Detail Account is never valid; a Detail Account code is required on every line.
 15. An archived Subsidiary Account cannot receive new ledger postings.
 16. Historical ledger lines remain associated with archived accounts.
 17. Archival never deletes or rewrites accounting history.
@@ -507,8 +507,7 @@ Exact permission names remain undefined. The target rules above must not be inte
 
 - The Chart of Accounts defines allowed Detail-Account Types.
 - The Detail Accounts capability owns actual Detail Accounts.
-- A Subsidiary Account with type `NONE` rejects a Detail Account reference.
-- A Subsidiary Account with another type requires a Detail Account of that type.
+- Every Subsidiary Account requires a Detail Account of its declared type on every ledger line.
 - The existence, status, and accessibility of the referenced Detail Account must be verified during posting.
 - Archiving a Detail Account does not archive its Subsidiary Account.
 - Archiving a Subsidiary Account does not archive Detail Accounts.
@@ -588,7 +587,7 @@ Migration anomalies must not be silently corrected without an explicit business 
 - Chart endpoints do not declare permission policies yet. Token-based authorization will be added when the application authorization model is defined.
 - Uniqueness is enforced at the documented hierarchy scope only: globally for Account Classes and within the direct parent for General and Subsidiary Accounts. A composed full-path code is not additionally constrained to be globally unique.
 - Account Classes may be reactivated indefinitely. Child accounts require all ancestors to be active before reactivation.
-- `NONE`, `BANK`, `SYMBOL`, and `PERSON` are the complete Detail-Account Type set for the current implementation.
+- `BANK`, `SYMBOL`, and `PERSON` are the complete Detail-Account Type set for the current implementation.
 - Each account has one Unicode name value. Dedicated multilingual name variants are not supported.
 - Chart changes use the application's general timestamps and observability. A dedicated business audit-history store is not part of the current capability.
 - General search defaults to page 1 with 50 items, permits at most 100 items per page, and includes both lifecycle statuses unless a status is supplied.
@@ -601,6 +600,6 @@ The following questions remain open:
 2. Are Account Class codes numeric, textual, or both?
 3. Will future posting selection reuse Search Accounts or require a separate posting-oriented use case?
 4. Will future authorization use one global manage permission or separate permissions for each account level and operation?
-5. Are additional Detail-Account Types required in a future version beyond `NONE`, `BANK`, `SYMBOL`, and `PERSON`?
+5. Are additional Detail-Account Types required in a future version beyond `BANK`, `SYMBOL`, and `PERSON`?
 
 Coding agents must not invent answers to these questions. A task that depends on one of them requires an explicit business decision and an update to this document.

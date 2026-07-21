@@ -391,8 +391,7 @@ Exact permission names are defined by the application-wide authorization model.
 ## 14. Relationship with Chart of Accounts
 
 - A Subsidiary Account declares a required Detail-Account Type.
-- `NONE` means a ledger line must not contain a Detail Account code.
-- `PERSON`, `SYMBOL`, or `BANK` means a ledger line must contain an active Detail Account code of the same current type.
+- `PERSON`, `SYMBOL`, or `BANK` each means a ledger line must contain an active Detail Account code of the same current type; every ledger line requires a Detail Account code.
 - The Chart of Accounts does not own Detail Account records.
 - Changing a Subsidiary Account does not modify Detail Accounts.
 - Changing a Detail Account does not modify the Chart of Accounts.

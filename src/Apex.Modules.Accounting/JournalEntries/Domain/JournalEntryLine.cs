@@ -11,7 +11,7 @@ public sealed class JournalEntryLine
     public string AccountClassCode { get; private init; } = null!;
     public string GeneralAccountCode { get; private init; } = null!;
     public string SubsidiaryAccountCode { get; private init; } = null!;
-    public string? DetailAccountCode { get; private init; }
+    public string DetailAccountCode { get; private init; } = null!;
     public string Description { get; private init; } = null!;
 
     private JournalEntryLine() { }
@@ -19,7 +19,7 @@ public sealed class JournalEntryLine
     internal static JournalEntryLine Create(
         long id, int rowNumber, JournalEntrySide side, decimal amount,
         string accountClassCode, string generalAccountCode, string subsidiaryAccountCode,
-        string? detailAccountCode, string description)
+        string detailAccountCode, string description)
     {
         if (id <= 0)
             throw new BusinessRuleException("Journal entry line identity is invalid.", JournalEntryErrors.NotFound);
@@ -31,6 +31,9 @@ public sealed class JournalEntryLine
         ValidateCode(accountClassCode);
         ValidateCode(generalAccountCode);
         ValidateCode(subsidiaryAccountCode);
+        if (string.IsNullOrWhiteSpace(detailAccountCode))
+            throw new BusinessRuleException(
+                "A detail account code is required on every line.", JournalEntryErrors.DetailAccountRequired);
         if (string.IsNullOrWhiteSpace(description))
             throw new BusinessRuleException("Line description is required.", JournalEntryErrors.DescriptionRequired);
 
@@ -43,7 +46,7 @@ public sealed class JournalEntryLine
             AccountClassCode = accountClassCode.Trim(),
             GeneralAccountCode = generalAccountCode.Trim(),
             SubsidiaryAccountCode = subsidiaryAccountCode.Trim(),
-            DetailAccountCode = string.IsNullOrWhiteSpace(detailAccountCode) ? null : detailAccountCode.Trim(),
+            DetailAccountCode = detailAccountCode.Trim(),
             Description = description.Trim()
         };
     }
@@ -51,7 +54,7 @@ public sealed class JournalEntryLine
     internal static JournalEntryLine Rehydrate(
         long id, int rowNumber, JournalEntrySide side, decimal amount,
         string accountClassCode, string generalAccountCode, string subsidiaryAccountCode,
-        string? detailAccountCode, string description) => new()
+        string detailAccountCode, string description) => new()
         {
             Id = id,
             RowNumber = rowNumber,

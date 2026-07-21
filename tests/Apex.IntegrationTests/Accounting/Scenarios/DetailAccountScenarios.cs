@@ -6,9 +6,10 @@ using Apex.Modules.Accounting.DetailAccounts.Domain;
 using Apex.Modules.Accounting.JournalEntries.UseCases;
 using static Apex.IntegrationTests.Accounting.Scenarios.Infrastructure.AccountingScenario;
 // Two different "DetailAccountType" enums are involved here: ChartOfAccounts.Domain.DetailAccountType
-// is the *requirement* recorded on a Subsidiary Account (NONE/BANK/PERSON/SYMBOL); DetailAccounts.Domain
-// DetailAccountType is the concrete Detail Account's own type (PERSON/SYMBOL/BANK, no NONE). Alias the
-// former to keep every CreateSubsidiaryAccountAsync call unambiguous.
+// is the *requirement* recorded on a Subsidiary Account (BANK/PERSON/SYMBOL); DetailAccounts.Domain
+// DetailAccountType is the concrete Detail Account's own type (PERSON/SYMBOL/BANK). Both sets are
+// identical now that a "no detail account" requirement no longer exists. Alias the former to keep
+// every CreateSubsidiaryAccountAsync call unambiguous.
 using SubsidiaryDetailRequirement = Apex.Modules.Accounting.ChartOfAccounts.Domain.DetailAccountType;
 
 namespace Apex.IntegrationTests.Accounting.Scenarios;
@@ -25,8 +26,7 @@ namespace Apex.IntegrationTests.Accounting.Scenarios;
 /// Post. The validator's exact rules (all thrown from <c>DetailAccountErrors</c>, not the parallel
 /// unused <c>JournalEntryErrors.DetailAccount*</c> constants):
 /// <list type="bullet">
-/// <item>Requirement <c>NONE</c> + a supplied code → 422 <c>detail_account_not_allowed</c>.</item>
-/// <item>Requirement not <c>NONE</c> + no code → 422 <c>detail_account_required</c>.</item>
+/// <item>No code on any line → 422 <c>detail_account_required</c> (a Detail Account is mandatory on every line).</item>
 /// <item>Code supplied but unresolvable → 404 <c>detail_account_not_found</c> (a 404 from inside a
 /// draft-creation POST — confirmed by reading the handler, not assumed).</item>
 /// <item>Resolved but archived → 422 <c>detail_account_archived</c>.</item>
@@ -35,34 +35,6 @@ namespace Apex.IntegrationTests.Accounting.Scenarios;
 /// </summary>
 public sealed class DetailAccountScenarios(ApexWebApplicationFactory factory) : AccountingScenarioTestBase(factory)
 {
-    [Fact]
-    [Trait("ScenarioId", "DETAIL-001")]
-    public async Task NoneRequirement_ShouldAcceptLineWithoutDetailAccount()
-    {
-        var scenario = await ArrangeDetailChartAsync();
-        var date = ScenarioDefaults.FiscalYearStart.AddDays(3);
-
-        var posted = await PostAsync(scenario, date, "ASSET", "01", "01", null, 100m);
-
-        await Assertions.AssertEntryMatchesAuthoritativeStateAsync(posted);
-        await Assertions.AssertClosingBalanceAsync(
-            scenario.Context.BookId, scenario.Context.FiscalYearId, "ASSET", "01", "01", null, date, 100m);
-    }
-
-    [Fact]
-    [Trait("ScenarioId", "DETAIL-002")]
-    public async Task NoneRequirement_ShouldRejectSuppliedDetailAccount()
-    {
-        var scenario = await ArrangeDetailChartAsync();
-        var date = ScenarioDefaults.FiscalYearStart.AddDays(3);
-
-        await Assertions.AssertRejectedWithoutSideEffectsAsync(
-            scenario.Context.BookId, scenario.Context.FiscalYearId,
-            () => scenario.CreateDraftEntryAsync(date, "None requirement with a supplied detail account",
-                [Debit("ASSET", "01", "01", 100m, "Cash in", "BANK-1"), Credit("EQUITY", "01", "01", 100m, "Capital in")]),
-            HttpStatusCode.UnprocessableEntity, DetailAccountErrors.NotAllowed);
-    }
-
     [Fact]
     [Trait("ScenarioId", "DETAIL-003")]
     public async Task BankRequirement_ShouldAcceptAnActiveBankDetailAccount()
@@ -153,7 +125,7 @@ public sealed class DetailAccountScenarios(ApexWebApplicationFactory factory) : 
         await Assertions.AssertRejectedWithoutSideEffectsAsync(
             scenario.Context.BookId, scenario.Context.FiscalYearId,
             () => scenario.CreateDraftEntryAsync(date, "Missing required detail account",
-                [Debit("ASSET", "02", "01", 100m, "Cash in"), Credit("EQUITY", "01", "01", 100m, "Capital in")]),
+                [Debit("ASSET", "02", "01", 100m, "Cash in", detailAccountCode: null), Credit("EQUITY", "01", "01", 100m, "Capital in")]),
             HttpStatusCode.UnprocessableEntity, DetailAccountErrors.Required);
     }
 
@@ -278,10 +250,10 @@ public sealed class DetailAccountScenarios(ApexWebApplicationFactory factory) : 
     // ---------------------------------------------------------------------------------------
 
     /// <summary>
-    /// One Subsidiary Account per Detail-Account requirement (ASSET/01=NONE, ASSET/02=BANK,
-    /// ASSET/03=PERSON, ASSET/04=SYMBOL), a single EQUITY/01/01 credit counterpart, and four concrete
-    /// Detail Accounts (two Bank, one Person, one Symbol) covering every requirement/type
-    /// combination the catalogue needs.
+    /// One Subsidiary Account per Detail-Account requirement (ASSET/02=BANK, ASSET/03=PERSON,
+    /// ASSET/04=SYMBOL), a PERSON EQUITY/01/01 credit counterpart, the standard PERSON Detail
+    /// Account used by every credit leg, and four concrete Detail Accounts (two Bank, one Person,
+    /// one Symbol) covering every requirement/type combination the catalogue needs.
     /// </summary>
     private async Task<DetailScenario> ArrangeDetailChartAsync()
     {
@@ -292,8 +264,6 @@ public sealed class DetailAccountScenarios(ApexWebApplicationFactory factory) : 
         await scenario.OpenFiscalYearAsync();
 
         await scenario.CreateAccountClassAsync("ASSET", "Assets");
-        await scenario.CreateGeneralAccountAsync("ASSET", "01", "Cash", AccountNature.Debtor);
-        await scenario.CreateSubsidiaryAccountAsync("ASSET", "01", "01", "Cash", AccountNature.Debtor, SubsidiaryDetailRequirement.None);
         await scenario.CreateGeneralAccountAsync("ASSET", "02", "Bank Accounts", AccountNature.Debtor);
         await scenario.CreateSubsidiaryAccountAsync("ASSET", "02", "01", "Bank Holder", AccountNature.Debtor, SubsidiaryDetailRequirement.Bank);
         await scenario.CreateGeneralAccountAsync("ASSET", "03", "Receivables", AccountNature.Debtor);
@@ -303,7 +273,10 @@ public sealed class DetailAccountScenarios(ApexWebApplicationFactory factory) : 
 
         await scenario.CreateAccountClassAsync("EQUITY", "Equity");
         await scenario.CreateGeneralAccountAsync("EQUITY", "01", "Owner Capital", AccountNature.Creditor);
-        await scenario.CreateSubsidiaryAccountAsync("EQUITY", "01", "01", "Capital", AccountNature.Creditor, SubsidiaryDetailRequirement.None);
+        await scenario.CreateSubsidiaryAccountAsync("EQUITY", "01", "01", "Capital", AccountNature.Creditor, SubsidiaryDetailRequirement.Person);
+
+        // The credit counterpart on every scenario uses the default (standard PERSON) detail code.
+        await scenario.SeedStandardDetailAccountAsync();
 
         var bankOne = await Api.CreateDetailAccountAsync("BANK-1", "Bank Detail A", ScenarioDefaults.DetailAccountTypeBank);
         Assert.True(bankOne.IsSuccess, bankOne.RawBody);

@@ -16,7 +16,7 @@ internal sealed class ResolveAccountPathHandler(IAccountPathReadRepository repos
             cancellationToken);
 
         if (row is null)
-            return new AccountPathResolution(Exists: false, PostingEligible: false, RequiredDetailType: "NONE");
+            return new AccountPathResolution(Exists: false, PostingEligible: false, RequiredDetailType: "");
 
         var eligible = row.ClassStatus == "ACTIVE"
             && row.GeneralStatus == "ACTIVE"

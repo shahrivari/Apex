@@ -18,7 +18,6 @@ public static class JournalEntryErrors
     public const string InvalidAccountCodePath = "journal_entry_invalid_account_code_path";
     public const string AccountNotEligible = "journal_entry_account_not_eligible";
     public const string DetailAccountRequired = "journal_entry_detail_account_required";
-    public const string DetailAccountNotAllowed = "journal_entry_detail_account_not_allowed";
     public const string DescriptionRequired = "journal_entry_description_required";
     public const string UnsupportedDocumentType = "journal_entry_unsupported_document_type";
     public const string UnsupportedInsertionType = "journal_entry_unsupported_insertion_type";

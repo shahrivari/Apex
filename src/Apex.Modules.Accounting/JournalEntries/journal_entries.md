@@ -75,7 +75,7 @@ An accounting document containing ordered debit and credit lines for one Account
 
 ### Journal Entry Line
 
-One ordered debit or credit posting to a complete account-code path, optionally qualified by a Detail Account when the selected Subsidiary Account requires one.
+One ordered debit or credit posting to a complete account-code path, always qualified by a Detail Account of the type the selected Subsidiary Account requires.
 
 ### Reference Number
 
@@ -198,7 +198,7 @@ A Journal Entry Line records:
 | Account Class Code | Immutable Account Class business code |
 | General Account Code | Immutable General Account business code |
 | Subsidiary Account Code | Immutable Subsidiary Account business code |
-| Detail Account Code | Immutable global Detail Account code when required |
+| Detail Account Code | Immutable global Detail Account code, required on every line |
 | Side | Debit or credit |
 | Amount | Strictly positive accounting amount |
 | Description | Required line-level explanation |
@@ -273,8 +273,8 @@ The following rules must always hold:
 27. Every line contains a valid complete Account Class, General Account, and Subsidiary Account code path.
 28. The referenced account-code path must exist when the draft is posted.
 29. The referenced accounts must be eligible for new posting when the draft is posted.
-30. A Detail Account Code is required exactly when the Subsidiary Account requires a Detail Account.
-31. A supplied Detail Account must exist, be active, and have the type currently required by the Subsidiary Account.
+30. A Detail Account Code is required on every line; it is never null or empty.
+31. The supplied Detail Account must exist, be active, and have the type currently required by the Subsidiary Account.
 32. Historical posted lines remain valid when account names, Detail Account names, or Detail Account types later change.
 33. A financial Journal Entry may be posted only when total debits equal total credits.
 34. A statistical Journal Entry is also required to balance unless a later explicit business decision changes this rule.
@@ -513,7 +513,7 @@ One row represents financial turnover for:
 - Fiscal Year.
 - Balance Date.
 - Complete account-code path.
-- Optional Detail Account Code.
+- Detail Account Code.
 - Document Type.
 
 The logical unique key is:
@@ -525,11 +525,11 @@ AccountingBookId
 + AccountClassCode
 + GeneralAccountCode
 + SubsidiaryAccountCode
-+ DetailAccountCode-or-no-detail sentinel
++ DetailAccountCode
 + DocumentType
 ```
 
-Null Detail Account uniqueness must be enforced deliberately; SQL null semantics must not permit duplicate logical rows.
+Detail Account Code is a mandatory, non-null part of the grain, so the logical row uniqueness holds without any special null handling.
 
 ### 12.3 Measures
 
@@ -565,7 +565,7 @@ One row represents the total financial closing balance for:
 - Fiscal Year.
 - Balance Date.
 - Complete account-code path.
-- Optional Detail Account Code.
+- Detail Account Code.
 
 Document Type is intentionally not part of this projection. Reports requiring Document Type inclusion or exclusion use Daily Account Turnover.
 
@@ -722,7 +722,7 @@ Implementation must follow `docs/persistency_design.md`. At minimum, persistence
 - Valid Status, Balance Effect, Document Type, Insertion Type, and Side values.
 - Positive Amount and Row Number.
 - Required descriptions and account codes.
-- Reporting-projection logical uniqueness, including the no-Detail-Account case.
+- Reporting-projection logical uniqueness across the mandatory Detail Account Code grain.
 
 Fiscal Years, Journal Entries, Journal Entry Lines, and both projections are shard-resident and use
 Fiscal Year ID as their routing discriminator. Creation atomically updates both Fiscal Year counters
@@ -782,7 +782,7 @@ The capability defines stable error constants for at least:
 - Non-positive Amount.
 - Invalid account-code path.
 - Account not eligible for posting.
-- Detail Account required, unexpected, missing, inactive, or incompatible.
+- Detail Account required, missing, inactive, or incompatible.
 - Unsupported Document Type, Insertion Type, Balance Effect, or Side.
 - Duplicate Source Reference.
 - Conflicting idempotent request.

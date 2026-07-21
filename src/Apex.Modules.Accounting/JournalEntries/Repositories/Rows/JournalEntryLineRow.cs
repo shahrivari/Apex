@@ -8,7 +8,7 @@ public sealed class JournalEntryLineRow
     public string AccountClassCode { get; init; } = null!;
     public string GeneralAccountCode { get; init; } = null!;
     public string SubsidiaryAccountCode { get; init; } = null!;
-    public string? DetailAccountCode { get; init; }
+    public string DetailAccountCode { get; init; } = null!;
     public string Side { get; init; } = null!;
     public decimal Amount { get; init; }
     public string Description { get; init; } = null!;

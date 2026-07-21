@@ -422,19 +422,20 @@ public sealed class BalanceCalculationScenarios(ApexWebApplicationFactory factor
 
         await scenario.CreateAccountClassAsync("ASSET", "Assets");
         await scenario.CreateGeneralAccountAsync("ASSET", "01", "Cash and Banks", AccountNature.Debtor);
-        await scenario.CreateSubsidiaryAccountAsync("ASSET", "01", "01", "Cash", AccountNature.Debtor, DetailAccountType.None);
+        await scenario.CreateSubsidiaryAccountAsync("ASSET", "01", "01", "Cash", AccountNature.Debtor, DetailAccountType.Person);
 
         await scenario.CreateAccountClassAsync("EQUITY", "Equity");
         await scenario.CreateGeneralAccountAsync("EQUITY", "01", "Owner Capital", AccountNature.Creditor);
-        await scenario.CreateSubsidiaryAccountAsync("EQUITY", "01", "01", "Capital", AccountNature.Creditor, DetailAccountType.None);
+        await scenario.CreateSubsidiaryAccountAsync("EQUITY", "01", "01", "Capital", AccountNature.Creditor, DetailAccountType.Person);
 
         await scenario.CreateAccountClassAsync("EXPENSE", "Expenses");
         await scenario.CreateGeneralAccountAsync("EXPENSE", "01", "Operating Expenses", AccountNature.Debtor);
-        await scenario.CreateSubsidiaryAccountAsync("EXPENSE", "01", "01", "Expense", AccountNature.Debtor, DetailAccountType.None);
+        await scenario.CreateSubsidiaryAccountAsync("EXPENSE", "01", "01", "Expense", AccountNature.Debtor, DetailAccountType.Person);
 
         await scenario.CreateAccountClassAsync("REVENUE", "Revenue");
         await scenario.CreateGeneralAccountAsync("REVENUE", "01", "Operating Revenue", AccountNature.Creditor);
-        await scenario.CreateSubsidiaryAccountAsync("REVENUE", "01", "01", "Revenue", AccountNature.Creditor, DetailAccountType.None);
+        await scenario.CreateSubsidiaryAccountAsync("REVENUE", "01", "01", "Revenue", AccountNature.Creditor, DetailAccountType.Person);
+        await scenario.SeedStandardDetailAccountAsync();
 
         return scenario;
     }
@@ -454,14 +455,15 @@ public sealed class BalanceCalculationScenarios(ApexWebApplicationFactory factor
 
         await scenario.CreateAccountClassAsync("ASSET", "Assets");
         await scenario.CreateGeneralAccountAsync("ASSET", "01", "Cash and Banks", AccountNature.Debtor);
-        await scenario.CreateSubsidiaryAccountAsync("ASSET", "01", "01", "Cash Operating", AccountNature.Debtor, DetailAccountType.None);
-        await scenario.CreateSubsidiaryAccountAsync("ASSET", "01", "02", "Cash Reserve", AccountNature.Debtor, DetailAccountType.None);
+        await scenario.CreateSubsidiaryAccountAsync("ASSET", "01", "01", "Cash Operating", AccountNature.Debtor, DetailAccountType.Person);
+        await scenario.CreateSubsidiaryAccountAsync("ASSET", "01", "02", "Cash Reserve", AccountNature.Debtor, DetailAccountType.Person);
         await scenario.CreateGeneralAccountAsync("ASSET", "02", "Bank Accounts", AccountNature.Debtor);
         await scenario.CreateSubsidiaryAccountAsync("ASSET", "02", "01", "Bank Detail Holder", AccountNature.Debtor, DetailAccountType.Bank);
 
         await scenario.CreateAccountClassAsync("EQUITY", "Equity");
         await scenario.CreateGeneralAccountAsync("EQUITY", "01", "Owner Capital", AccountNature.Creditor);
-        await scenario.CreateSubsidiaryAccountAsync("EQUITY", "01", "01", "Capital", AccountNature.Creditor, DetailAccountType.None);
+        await scenario.CreateSubsidiaryAccountAsync("EQUITY", "01", "01", "Capital", AccountNature.Creditor, DetailAccountType.Person);
+        await scenario.SeedStandardDetailAccountAsync();
 
         await scenario.CreateDetailAccountAsync("BANK-A", "Bank Detail A", ScenarioDefaults.DetailAccountTypeBank);
         await scenario.CreateDetailAccountAsync("BANK-B", "Bank Detail B", ScenarioDefaults.DetailAccountTypeBank);

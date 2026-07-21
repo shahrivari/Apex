@@ -35,8 +35,8 @@ public static class ScenarioDefaults
     public const string SideCredit = "CREDIT";
 
     // Detail-account requirement recorded on a Subsidiary Account
-    // (Apex.Modules.Accounting.ChartOfAccounts.Domain.DetailAccountType).
-    public const string DetailRequirementNone = "NONE";
+    // (Apex.Modules.Accounting.ChartOfAccounts.Domain.DetailAccountType). Every Subsidiary Account
+    // requires one of these — a "no detail account" requirement no longer exists.
     public const string DetailRequirementBank = "BANK";
     public const string DetailRequirementSymbol = "SYMBOL";
     public const string DetailRequirementPerson = "PERSON";
@@ -45,6 +45,12 @@ public static class ScenarioDefaults
     public const string DetailAccountTypePerson = "PERSON";
     public const string DetailAccountTypeSymbol = "SYMBOL";
     public const string DetailAccountTypeBank = "BANK";
+
+    // A standard PERSON Detail Account seeded by generic scenarios so every posted line can carry a
+    // Detail Account code (now mandatory on every line). Its type matches the PERSON requirement the
+    // generic charts give their Subsidiary Accounts, so it is valid on any of their lines.
+    public const string StandardDetailCode = "DET-1";
+    public const string StandardDetailName = "Standard Detail";
 
     /// <summary>
     /// Builds a readable, collision-resistant business code. No static counters or shared mutable

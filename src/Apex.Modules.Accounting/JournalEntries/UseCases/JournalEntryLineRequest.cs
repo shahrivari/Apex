@@ -12,7 +12,7 @@ public sealed class JournalEntryLineRequest
     public string AccountClassCode { get; init; } = null!;
     public string GeneralAccountCode { get; init; } = null!;
     public string SubsidiaryAccountCode { get; init; } = null!;
-    public string? DetailAccountCode { get; init; }
+    public string DetailAccountCode { get; init; } = null!;
     public string Description { get; init; } = null!;
     public int? RowNumber { get; init; }
 }

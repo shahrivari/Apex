@@ -99,7 +99,7 @@ CREATE TABLE journal_entry_line (
     account_class_code NVARCHAR(64) NOT NULL,
     general_account_code NVARCHAR(2) NOT NULL,
     subsidiary_account_code NVARCHAR(2) NOT NULL,
-    detail_account_code NVARCHAR(50) NULL,
+    detail_account_code NVARCHAR(50) NOT NULL,
     side VARCHAR(8) NOT NULL,
     amount DECIMAL(19, 4) NOT NULL,
     description NVARCHAR(1024) NOT NULL,
@@ -114,7 +114,8 @@ CREATE TABLE journal_entry_line (
     CONSTRAINT ck_journal_entry_line_codes CHECK (
         LEN(LTRIM(RTRIM(account_class_code))) > 0
         AND LEN(LTRIM(RTRIM(general_account_code))) > 0
-        AND LEN(LTRIM(RTRIM(subsidiary_account_code))) > 0),
+        AND LEN(LTRIM(RTRIM(subsidiary_account_code))) > 0
+        AND LEN(LTRIM(RTRIM(detail_account_code))) > 0),
     CONSTRAINT ck_journal_entry_line_description CHECK (LEN(LTRIM(RTRIM(description))) > 0)
 );
 GO

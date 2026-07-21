@@ -23,7 +23,7 @@ public sealed class JournalEntryProjectionWriteRepository : IJournalEntryProject
                 line.AccountClassCode,
                 line.GeneralAccountCode,
                 line.SubsidiaryAccountCode,
-                DetailAccountCode = line.DetailAccountCode ?? string.Empty,
+                DetailAccountCode = line.DetailAccountCode,
                 DocumentType = entry.DocumentType.ToDatabaseValue(),
                 DebitDelta = isDebit ? line.Amount : 0m,
                 CreditDelta = isDebit ? 0m : line.Amount,

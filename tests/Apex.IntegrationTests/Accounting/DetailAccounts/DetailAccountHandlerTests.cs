@@ -136,7 +136,7 @@ public sealed class DetailAccountHandlerTests(ApexIntegrationTestFixture fixture
     }
 
     [Fact]
-    public async Task PostingValidation_ShouldCoverNoneRequiredMissingArchivedAndTypeMismatch()
+    public async Task PostingValidation_ShouldCoverRequiredMissingArchivedAndTypeMismatch()
     {
         await ResetAccountingDatabaseAsync();
         await using var scope = await CreateScopeAsync();
@@ -146,15 +146,6 @@ public sealed class DetailAccountHandlerTests(ApexIntegrationTestFixture fixture
             .HandleAsync(new("POSTING", "Posting", "PERSON"), default);
         var validator = services.GetRequiredService<IDetailAccountPostingValidator>();
 
-        await validator.ValidateAsync(null, "NONE");
-        Assert.Equal(
-            DetailAccountErrors.NotAllowed,
-            (
-                await Assert.ThrowsAsync<BusinessRuleException>(() =>
-                    validator.ValidateAsync(created.Code, "NONE")
-                )
-            ).ErrorCode
-        );
         Assert.Equal(
             DetailAccountErrors.Required,
             (

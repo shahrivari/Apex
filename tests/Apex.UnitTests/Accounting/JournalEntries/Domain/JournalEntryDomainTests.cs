@@ -286,14 +286,14 @@ public sealed class JournalEntryDomainTests
 
     private static JournalEntryLineInput Line(
         long id, JournalEntrySide side, decimal amount, string description = "line",
-        int? rowNumber = null, string? detail = null) =>
+        int? rowNumber = null, string detail = "D-1") =>
         new(id, side, amount, "1", "01", "01", detail, description, rowNumber);
 
     private static JournalEntry RehydratePosted() => JournalEntry.Rehydrate(
         1, 2, 3, 1, 1, false, AccountingDate, CreatedAt, "posted", DocumentType.General,
         InsertionType.Manual, JournalEntryStatus.Posted, BalanceEffect.Financial, null, null, null, null, null,
         CreatedAt, CreatedAt, null, [
-            JournalEntryLine.Rehydrate(11, 1, JournalEntrySide.Debit, 100m, "1", "01", "01", null, "line"),
-            JournalEntryLine.Rehydrate(12, 2, JournalEntrySide.Credit, 100m, "1", "01", "01", null, "line")
+            JournalEntryLine.Rehydrate(11, 1, JournalEntrySide.Debit, 100m, "1", "01", "01", "D-1", "line"),
+            JournalEntryLine.Rehydrate(12, 2, JournalEntrySide.Credit, 100m, "1", "01", "01", "D-1", "line")
         ]);
 }

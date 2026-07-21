@@ -12,7 +12,6 @@ public static class DetailAccountErrors
     public const string AlreadyArchived = "detail_account_already_archived";
     public const string Archived = "detail_account_archived";
     public const string TypeMismatch = "detail_account_type_mismatch";
-    public const string NotAllowed = "detail_account_not_allowed";
     public const string Required = "detail_account_required";
     public const string CannotBeDeleted = "detail_account_cannot_be_deleted";
 }

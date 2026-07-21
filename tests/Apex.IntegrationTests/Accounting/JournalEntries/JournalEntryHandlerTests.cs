@@ -321,6 +321,7 @@ public sealed class JournalEntryHandlerTests(ApexIntegrationTestFixture fixture)
         AccountClassCode = "1",
         GeneralAccountCode = "01",
         SubsidiaryAccountCode = "01",
+        DetailAccountCode = "D-1",
         Description = "line"
     };
 

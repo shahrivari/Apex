@@ -33,7 +33,7 @@ public sealed class ProjectionIntegrityScenarios(ApexWebApplicationFactory facto
         await PostBalancedEntryAsync(scenario, date, 250m);
         await Inspector.CorruptTurnoverAsync(
             scenario.Context.BookId, scenario.Context.FiscalYearId, date,
-            "ASSET", "01", "01", null, ScenarioDefaults.DocumentTypeGeneral, 999m, 0m);
+            "ASSET", "01", "01", ScenarioDefaults.StandardDetailCode, ScenarioDefaults.DocumentTypeGeneral, 999m, 0m);
 
         var result = await Api.ReconcileJournalEntryProjectionsAsync(scenario.Context.FiscalYearId);
 
@@ -51,7 +51,7 @@ public sealed class ProjectionIntegrityScenarios(ApexWebApplicationFactory facto
         await PostBalancedEntryAsync(scenario, date, 250m);
         await Inspector.CorruptBalanceAsync(
             scenario.Context.BookId, scenario.Context.FiscalYearId, date,
-            "ASSET", "01", "01", null, 999m);
+            "ASSET", "01", "01", ScenarioDefaults.StandardDetailCode, 999m);
 
         var result = await Api.ReconcileJournalEntryProjectionsAsync(scenario.Context.FiscalYearId);
 
@@ -74,10 +74,10 @@ public sealed class ProjectionIntegrityScenarios(ApexWebApplicationFactory facto
 
         await Inspector.CorruptTurnoverAsync(
             scenario.Context.BookId, scenario.Context.FiscalYearId, date,
-            "ASSET", "01", "01", null, ScenarioDefaults.DocumentTypeGeneral, 999m, 0m);
+            "ASSET", "01", "01", ScenarioDefaults.StandardDetailCode, ScenarioDefaults.DocumentTypeGeneral, 999m, 0m);
         await Inspector.CorruptBalanceAsync(
             scenario.Context.BookId, scenario.Context.FiscalYearId, date,
-            "ASSET", "01", "01", null, 999m);
+            "ASSET", "01", "01", ScenarioDefaults.StandardDetailCode, 999m);
 
         var rebuild = await Api.RebuildJournalEntryProjectionsAsync(scenario.Context.FiscalYearId);
         var reconcile = await Api.ReconcileJournalEntryProjectionsAsync(scenario.Context.FiscalYearId);
@@ -125,11 +125,12 @@ public sealed class ProjectionIntegrityScenarios(ApexWebApplicationFactory facto
         await scenario.CreateAccountClassAsync("ASSET", "Assets");
         await scenario.CreateGeneralAccountAsync("ASSET", "01", "Cash", AccountNature.Debtor);
         await scenario.CreateSubsidiaryAccountAsync(
-            "ASSET", "01", "01", "Cash", AccountNature.Debtor, DetailAccountType.None);
+            "ASSET", "01", "01", "Cash", AccountNature.Debtor, DetailAccountType.Person);
         await scenario.CreateAccountClassAsync("EQUITY", "Equity");
         await scenario.CreateGeneralAccountAsync("EQUITY", "01", "Capital", AccountNature.Creditor);
         await scenario.CreateSubsidiaryAccountAsync(
-            "EQUITY", "01", "01", "Capital", AccountNature.Creditor, DetailAccountType.None);
+            "EQUITY", "01", "01", "Capital", AccountNature.Creditor, DetailAccountType.Person);
+        await scenario.SeedStandardDetailAccountAsync();
         await scenario.CreateFiscalYearAsync(
             "FY-2026", ScenarioDefaults.FiscalYearStart, ScenarioDefaults.FiscalYearEnd);
         await scenario.OpenFiscalYearAsync();

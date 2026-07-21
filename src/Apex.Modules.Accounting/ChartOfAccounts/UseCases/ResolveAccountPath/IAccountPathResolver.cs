@@ -2,8 +2,9 @@ namespace Apex.Modules.Accounting.ChartOfAccounts.UseCases.ResolveAccountPath;
 
 /// <summary>
 /// The outcome of resolving a complete Account Class / General Account / Subsidiary Account
-/// code path. <paramref name="RequiredDetailType"/> is the database value the Subsidiary Account
-/// requires ("NONE", "BANK", "SYMBOL", "PERSON").
+/// code path. <paramref name="RequiredDetailType"/> is the database value of the Detail Account
+/// type the Subsidiary Account requires ("BANK", "SYMBOL", "PERSON"); it is empty only when the
+/// path does not exist (in which case <paramref name="Exists"/> is false).
 /// </summary>
 public sealed record AccountPathResolution(
     bool Exists,

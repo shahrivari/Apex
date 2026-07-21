@@ -2,7 +2,6 @@ namespace Apex.Modules.Accounting.ChartOfAccounts.Domain;
 
 public enum DetailAccountType
 {
-    None,
     Bank,
     Symbol,
     Person

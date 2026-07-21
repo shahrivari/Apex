@@ -87,6 +87,14 @@ public sealed class AccountingScenario
         return this;
     }
 
+    /// <summary>Seeds the standard PERSON Detail Account (<see cref="ScenarioDefaults.StandardDetailCode"/>)
+    /// that generic charts require. Every Subsidiary Account in those charts declares a PERSON
+    /// requirement, so this one Detail Account is valid on every posted line.</summary>
+    public Task<AccountingScenario> SeedStandardDetailAccountAsync(CancellationToken cancellationToken = default) =>
+        CreateDetailAccountAsync(
+            ScenarioDefaults.StandardDetailCode, ScenarioDefaults.StandardDetailName,
+            ScenarioDefaults.DetailAccountTypePerson, cancellationToken);
+
     public async Task<AccountingScenario> CreateFiscalYearAsync(
         string title, DateOnly startDate, DateOnly endDate, CancellationToken cancellationToken = default)
     {
@@ -168,15 +176,18 @@ public sealed class AccountingScenario
             : throw new InvalidOperationException(
                 $"No journal entry with Reference Number {referenceNumber} was recorded in this scenario.");
 
+    // A Detail Account code is mandatory on every line. Generic scenarios seed
+    // <see cref="ScenarioDefaults.StandardDetailCode"/>, so it is the default here; tests that
+    // exercise a missing/other detail account pass an explicit value (including null).
     public static JournalEntryLineRequest Debit(
         string accountClassCode, string generalAccountCode, string subsidiaryAccountCode, decimal amount,
-        string description, string? detailAccountCode = null, int? rowNumber = null) =>
+        string description, string? detailAccountCode = ScenarioDefaults.StandardDetailCode, int? rowNumber = null) =>
         Line(ScenarioDefaults.SideDebit, accountClassCode, generalAccountCode, subsidiaryAccountCode, amount,
             description, detailAccountCode, rowNumber);
 
     public static JournalEntryLineRequest Credit(
         string accountClassCode, string generalAccountCode, string subsidiaryAccountCode, decimal amount,
-        string description, string? detailAccountCode = null, int? rowNumber = null) =>
+        string description, string? detailAccountCode = ScenarioDefaults.StandardDetailCode, int? rowNumber = null) =>
         Line(ScenarioDefaults.SideCredit, accountClassCode, generalAccountCode, subsidiaryAccountCode, amount,
             description, detailAccountCode, rowNumber);
 
@@ -189,7 +200,7 @@ public sealed class AccountingScenario
             AccountClassCode = accountClassCode,
             GeneralAccountCode = generalAccountCode,
             SubsidiaryAccountCode = subsidiaryAccountCode,
-            DetailAccountCode = detailAccountCode,
+            DetailAccountCode = detailAccountCode!,
             Description = description,
             RowNumber = rowNumber
         };

@@ -195,10 +195,11 @@ public sealed class StatisticalEntryScenarios(ApexWebApplicationFactory factory)
         await scenario.ActivateBookAsync();
         await scenario.CreateAccountClassAsync("ASSET", "Assets");
         await scenario.CreateGeneralAccountAsync("ASSET", "01", "Cash and Banks", AccountNature.Debtor);
-        await scenario.CreateSubsidiaryAccountAsync("ASSET", "01", "01", "Cash", AccountNature.Debtor, DetailAccountType.None);
+        await scenario.CreateSubsidiaryAccountAsync("ASSET", "01", "01", "Cash", AccountNature.Debtor, DetailAccountType.Person);
         await scenario.CreateAccountClassAsync("EQUITY", "Equity");
         await scenario.CreateGeneralAccountAsync("EQUITY", "01", "Owner Capital", AccountNature.Creditor);
-        await scenario.CreateSubsidiaryAccountAsync("EQUITY", "01", "01", "Capital", AccountNature.Creditor, DetailAccountType.None);
+        await scenario.CreateSubsidiaryAccountAsync("EQUITY", "01", "01", "Capital", AccountNature.Creditor, DetailAccountType.Person);
+        await scenario.SeedStandardDetailAccountAsync();
         await scenario.CreateFiscalYearAsync("FY-2026", ScenarioDefaults.FiscalYearStart, ScenarioDefaults.FiscalYearEnd);
         await scenario.OpenFiscalYearAsync();
         return scenario;

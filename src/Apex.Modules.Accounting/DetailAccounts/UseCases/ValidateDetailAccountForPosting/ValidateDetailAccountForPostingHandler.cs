@@ -13,15 +13,6 @@ public sealed class ValidateDetailAccountForPostingHandler(IDetailAccountReadRep
         CancellationToken ct = default
     )
     {
-        if (string.Equals(requiredType, "NONE", StringComparison.OrdinalIgnoreCase))
-        {
-            if (!string.IsNullOrWhiteSpace(code))
-                throw new BusinessRuleException(
-                    "The subsidiary account does not accept a detail account.",
-                    DetailAccountErrors.NotAllowed
-                );
-            return;
-        }
         if (string.IsNullOrWhiteSpace(code))
             throw new BusinessRuleException(
                 "A detail account is required.",
