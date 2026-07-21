@@ -25,10 +25,10 @@ public sealed class OpenFiscalYearHandler(
         if (accountingBook.Status != AccountingBookStatus.Active.ToDatabaseValue())
             throw new BusinessRuleException("A fiscal year can be opened only for an active accounting book.",
                 FiscalYearErrors.AccountingBookNotActive);
-        fiscalYear.Open(clock.UtcNow);
         if (await directoryRepository.HasOtherOpenAsync(fiscalYear.AccountingBookId, fiscalYear.Id, cancellationToken))
             throw new ConflictException("Another fiscal year is already open for the accounting book.",
                 FiscalYearErrors.OpenAlreadyExists);
+        fiscalYear.Open(clock.UtcNow);
         await writeRepository.UpdateAsync(shard, fiscalYear, cancellationToken);
         await shard.Transaction!.CommitAsync(cancellationToken);
         await directorySynchronizer.UpsertBestEffortAsync(fiscalYear, cancellationToken);
