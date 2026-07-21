@@ -85,6 +85,11 @@ the ones that have actually slipped through review here:
 7. Command-side checks use the write repository, not the read repository — they must share the
    command's connection, transaction, and locks (`persistency_design.md`).
 
+## Commits
+
+Commit messages MUST follow Conventional Commits (`<type>(<scope>): <summary>`, e.g.
+`feat(fiscal-years): add directory repair endpoint`) with a short body describing what changed.
+
 ## Scope discipline
 
 Move touched code toward the target architecture, but do not perform repository-wide refactors

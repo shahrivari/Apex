@@ -445,6 +445,24 @@ The later closing workflow must define:
 
 The Fiscal Year may become `CLOSED` only after that workflow completes successfully.
 
+### 9.12 Repair Fiscal Year Directory
+
+#### Business intent
+
+Rebuild the General Database directory row for a Fiscal Year from its authoritative shard row after best-effort directory synchronization has drifted.
+
+This is an internal, administrative Accounting operation and is not an ordinary business use case.
+
+#### Business outcome
+
+- The directory row for the Fiscal Year is overwritten to match its authoritative shard row.
+- No authoritative Fiscal Year state changes.
+
+#### Business failures
+
+- The Fiscal Year does not exist.
+- The caller is not permitted to perform directory repair.
+
 ## 10. Authorization Rules
 
 - Only authenticated users may access Fiscal Years.
@@ -453,6 +471,7 @@ The Fiscal Year may become `CLOSED` only after that workflow completes successfu
 - A caller may view or change only Fiscal Years belonging to Accounting Books within their authorized business scope.
 - Listing must never reveal Fiscal Years outside the caller's authorized scope.
 - Internal document-number allocation is available only to trusted Accounting operations.
+- Directory repair is an administrative operation and is available only to trusted Accounting operators, not ordinary Fiscal Year callers.
 
 Exact permission names are defined by the application-wide authorization model.
 
