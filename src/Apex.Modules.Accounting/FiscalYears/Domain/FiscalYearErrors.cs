@@ -5,6 +5,7 @@ public static class FiscalYearErrors
     public const string NotFound = "fiscal_year_not_found";
     public const string InvalidDateRange = "fiscal_year_invalid_date_range";
     public const string DatesOverlap = "fiscal_year_dates_overlap";
+    public const string DatesHaveGap = "fiscal_year_dates_have_gap";
     public const string CannotBeUpdated = "fiscal_year_cannot_be_updated";
     public const string CannotBeDeleted = "fiscal_year_cannot_be_deleted";
     public const string CannotBeOpened = "fiscal_year_cannot_be_opened";

@@ -8,7 +8,8 @@ using FluentValidation;
 namespace Apex.Modules.Accounting.FiscalYears.UseCases.CancelFiscalYear;
 
 public sealed class CancelFiscalYearHandler(
-    IFiscalYearWriteRepository writeRepository, IShardConnectionFactory shardConnectionFactory,
+    IFiscalYearWriteRepository writeRepository, IFiscalYearDirectoryRepository directoryRepository,
+    IShardConnectionFactory shardConnectionFactory,
     IShardKeyFactory<long> shardKeyFactory, FiscalYearDirectorySynchronizer directorySynchronizer,
     IClock clock, IValidator<CancelFiscalYearRequest> validator)
 {
@@ -19,8 +20,12 @@ public sealed class CancelFiscalYearHandler(
         await using var shard = await shardConnectionFactory.OpenAsync(
             shardKeyFactory.Create(id), beginTransaction: true, cancellationToken);
         var fiscalYear = await writeRepository.GetByIdForUpdateAsync(shard, id, cancellationToken)
-                ?? throw new NotFoundException("Fiscal year was not found.", FiscalYearErrors.NotFound);
+            ?? throw new NotFoundException("Fiscal year was not found.", FiscalYearErrors.NotFound);
         fiscalYear.Cancel(request.CancellationDate, clock.UtcNow);
+        if (await directoryRepository.WouldHaveGapWithRangeAsync(fiscalYear.AccountingBookId,
+                fiscalYear.StartDate, fiscalYear.CancellationDate!.Value, fiscalYear.Id, cancellationToken))
+            throw new ConflictException("Cancelling the fiscal year would create a date gap.",
+                FiscalYearErrors.DatesHaveGap);
         await writeRepository.UpdateAsync(shard, fiscalYear, cancellationToken);
         await shard.Transaction!.CommitAsync(cancellationToken);
         await directorySynchronizer.UpsertBestEffortAsync(fiscalYear, cancellationToken);

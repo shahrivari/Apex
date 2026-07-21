@@ -30,6 +30,11 @@ public sealed class CreateFiscalYearHandler(
         if (await directoryRepository.HasOverlapAsync(
                 request.AccountingBookId, request.StartDate, request.EndDate, cancellationToken: cancellationToken))
             throw new ConflictException("The fiscal year dates overlap another fiscal year.", FiscalYearErrors.DatesOverlap);
+        if (await directoryRepository.WouldHaveGapWithRangeAsync(
+                request.AccountingBookId, request.StartDate, request.EndDate,
+                cancellationToken: cancellationToken))
+            throw new ConflictException("Fiscal years must form a contiguous date range.",
+                FiscalYearErrors.DatesHaveGap);
 
         var fiscalYear = FiscalYear.Create(idGenerator.NewId(), request.AccountingBookId, request.Title,
             request.StartDate, request.EndDate, clock.UtcNow);

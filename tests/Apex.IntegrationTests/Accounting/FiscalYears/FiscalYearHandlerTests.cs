@@ -7,10 +7,12 @@ using Apex.Modules.Accounting.FiscalYears.Domain;
 using Apex.Modules.Accounting.FiscalYears.Repositories;
 using Apex.Modules.Accounting.FiscalYears.UseCases.CancelFiscalYear;
 using Apex.Modules.Accounting.FiscalYears.UseCases.CreateFiscalYear;
+using Apex.Modules.Accounting.FiscalYears.UseCases.DeleteFiscalYear;
 using Apex.Modules.Accounting.FiscalYears.UseCases.FinalizeFiscalYear;
 using Apex.Modules.Accounting.FiscalYears.UseCases.GetFiscalYear;
 using Apex.Modules.Accounting.FiscalYears.UseCases.OpenFiscalYear;
 using Apex.Modules.Accounting.FiscalYears.UseCases.ResolveFiscalYear;
+using Apex.Modules.Accounting.FiscalYears.UseCases.UpdateFiscalYear;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Apex.IntegrationTests.Accounting.FiscalYears;
@@ -64,6 +66,68 @@ public sealed class FiscalYearHandlerTests(ApexIntegrationTestFixture fixture)
         var years = await scope.Services.GetRequiredService<IFiscalYearDirectoryRepository>()
             .ListAsync(bookId, null, null, null, 1, 10);
         Assert.Single(years.Items);
+    }
+
+    [Fact]
+    public async Task Create_NonContiguousRange_ShouldBeRejectedWithStableConflict()
+    {
+        await ResetAccountingDatabaseAsync();
+        await using var scope = await CreateScopeAsync();
+        var bookId = await CreateBookAsync(scope, "FY-GAP-CREATE", "fy-gap-create");
+        var handler = scope.Services.GetRequiredService<CreateFiscalYearHandler>();
+        await handler.HandleAsync(Request(
+            bookId, new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31)));
+
+        var exception = await Assert.ThrowsAsync<ConflictException>(() => handler.HandleAsync(
+            Request(bookId, new DateOnly(2027, 1, 2), new DateOnly(2027, 12, 31))));
+
+        Assert.Equal(FiscalYearErrors.DatesHaveGap, exception.ErrorCode);
+    }
+
+    [Fact]
+    public async Task Update_MiddleRangeToCreateGap_ShouldBeRejected()
+    {
+        await ResetAccountingDatabaseAsync();
+        await using var scope = await CreateScopeAsync();
+        var bookId = await CreateBookAsync(scope, "FY-GAP-UPDATE", "fy-gap-update");
+        var createHandler = scope.Services.GetRequiredService<CreateFiscalYearHandler>();
+        await createHandler.HandleAsync(Request(
+            bookId, new DateOnly(2025, 1, 1), new DateOnly(2025, 12, 31)));
+        var middle = await createHandler.HandleAsync(Request(
+            bookId, new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31)));
+        await createHandler.HandleAsync(Request(
+            bookId, new DateOnly(2027, 1, 1), new DateOnly(2027, 12, 31)));
+
+        var exception = await Assert.ThrowsAsync<ConflictException>(() =>
+            scope.Services.GetRequiredService<UpdateFiscalYearHandler>().HandleAsync(middle.Id,
+                new UpdateFiscalYearRequest
+                {
+                    Title = "Shortened middle year",
+                    StartDate = new DateOnly(2026, 1, 1),
+                    EndDate = new DateOnly(2026, 12, 30)
+                }));
+
+        Assert.Equal(FiscalYearErrors.DatesHaveGap, exception.ErrorCode);
+    }
+
+    [Fact]
+    public async Task Delete_MiddleFiscalYear_ShouldBeRejectedWhenItCreatesGap()
+    {
+        await ResetAccountingDatabaseAsync();
+        await using var scope = await CreateScopeAsync();
+        var bookId = await CreateBookAsync(scope, "FY-GAP-DELETE", "fy-gap-delete");
+        var createHandler = scope.Services.GetRequiredService<CreateFiscalYearHandler>();
+        await createHandler.HandleAsync(Request(
+            bookId, new DateOnly(2025, 1, 1), new DateOnly(2025, 12, 31)));
+        var middle = await createHandler.HandleAsync(Request(
+            bookId, new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31)));
+        await createHandler.HandleAsync(Request(
+            bookId, new DateOnly(2027, 1, 1), new DateOnly(2027, 12, 31)));
+
+        var exception = await Assert.ThrowsAsync<ConflictException>(() =>
+            scope.Services.GetRequiredService<DeleteFiscalYearHandler>().HandleAsync(middle.Id));
+
+        Assert.Equal(FiscalYearErrors.DatesHaveGap, exception.ErrorCode);
     }
 
     [Fact]
@@ -142,6 +206,29 @@ public sealed class FiscalYearHandlerTests(ApexIntegrationTestFixture fixture)
             Request(bookId, cancellationDate.AddDays(1), new DateOnly(2026, 12, 31), "Replacement"));
 
         Assert.Equal(cancellationDate.AddDays(1), replacement.StartDate);
+    }
+
+    [Fact]
+    public async Task Cancel_WithLaterFiscalYear_ShouldRejectEffectiveDateGap()
+    {
+        await ResetAccountingDatabaseAsync();
+        await using var scope = await CreateScopeAsync();
+        var bookId = await CreateBookAsync(scope, "FY-GAP-CANCEL", "fy-gap-cancel");
+        var createHandler = scope.Services.GetRequiredService<CreateFiscalYearHandler>();
+        var first = await createHandler.HandleAsync(
+            Request(bookId, new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31)));
+        await createHandler.HandleAsync(
+            Request(bookId, new DateOnly(2027, 1, 1), new DateOnly(2027, 12, 31)));
+        var cancellationDate = new DateOnly(2026, 1, 1);
+        await scope.Services.GetRequiredService<OpenFiscalYearHandler>().HandleAsync(first.Id);
+        await scope.Services.GetRequiredService<FinalizeFiscalYearHandler>().HandleAsync(first.Id,
+            new FinalizeFiscalYearRequest { FinalizedThroughDate = cancellationDate });
+
+        var exception = await Assert.ThrowsAsync<ConflictException>(() =>
+            scope.Services.GetRequiredService<CancelFiscalYearHandler>().HandleAsync(first.Id,
+                new CancelFiscalYearRequest { CancellationDate = cancellationDate }));
+
+        Assert.Equal(FiscalYearErrors.DatesHaveGap, exception.ErrorCode);
     }
 
     private static CreateFiscalYearRequest Request(

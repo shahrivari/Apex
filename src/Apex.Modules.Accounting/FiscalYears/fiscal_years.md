@@ -106,7 +106,7 @@ The following rules must always hold:
 2. Every Fiscal Year belongs to exactly one Accounting Book.
 3. The start date is on or before the end date.
 4. Fiscal Years belonging to the same Accounting Book must not overlap.
-5. Gaps between Fiscal Years are allowed.
+5. Fiscal Years belonging to the same Accounting Book must form a contiguous sequence without date gaps.
 6. A Fiscal Year has no prescribed minimum or maximum duration.
 7. A new Fiscal Year always begins in `DRAFT` status.
 8. Draft dates may be changed while all Fiscal Year invariants remain satisfied.
@@ -149,7 +149,8 @@ An accounting date belongs to a Fiscal Year only when:
 - it falls within the Fiscal Year's effective date range; and
 - the Fiscal Year is in a status accepted by the requesting business operation.
 
-Because gaps are allowed, resolving a Fiscal Year for a date may legitimately produce no result.
+A date before the first Fiscal Year or after the last Fiscal Year may legitimately produce no result.
+No unresolved date may exist between two Fiscal Years of the same Accounting Book.
 
 Because overlaps are prohibited, resolving a Fiscal Year for one Accounting Book and date must never produce more than one result.
 
@@ -216,6 +217,7 @@ Define a future accounting period for an Accounting Book.
 - The caller is not permitted to manage the Accounting Book.
 - Required information is invalid or missing.
 - The date range overlaps another Fiscal Year of the same Accounting Book.
+- The date range would leave a gap between Fiscal Years of the same Accounting Book.
 
 ### 9.2 Update Draft Fiscal Year
 
@@ -241,6 +243,7 @@ Correct the definition of a Fiscal Year before it becomes operational.
 - The Fiscal Year is not in `DRAFT` status.
 - The resulting date range is invalid.
 - The resulting date range overlaps another Fiscal Year of the same Accounting Book.
+- The resulting date range would create a gap between Fiscal Years of the same Accounting Book.
 
 ### 9.3 Delete Draft Fiscal Year
 
@@ -258,6 +261,7 @@ The draft Fiscal Year is permanently removed.
 - The caller is not permitted to manage it.
 - The Fiscal Year is not in `DRAFT` status.
 - The Fiscal Year has any dependent accounting data, configuration, assignment, or other persisted dependency.
+- Deleting it would leave a gap between the remaining Fiscal Years of the Accounting Book.
 
 ### 9.4 Get Fiscal Year
 
@@ -424,6 +428,7 @@ Permanently terminate an open Fiscal Year at a specified effective date without 
 - The cancellation date is outside the Fiscal Year's original date range.
 - The cancellation date is not equal to the finalized-through date.
 - Accounting activity exists after the cancellation date.
+- The effective cancellation date would leave a gap before a later Fiscal Year.
 
 Cancellation does not delete the Fiscal Year or erase its accounting history.
 
@@ -507,14 +512,17 @@ counters, belongs in the shard selected by Fiscal Year ID. Journal Entries for t
 the same shard and transaction boundary.
 
 The General Database contains an eventually consistent `fiscal_year_directory` used only for list,
-date resolution, and book-wide overlap/open checks. Authoritative shard commits are not rolled back
+date resolution, and book-wide overlap, contiguity, and open checks. Authoritative shard commits are not rolled back
 when best-effort directory synchronization fails; an explicit repair operation rebuilds a directory
 row from its authoritative shard row.
 
 A Fiscal Year is an explicit business partition for accounting data that may be stored in a shard. Shard routing must use the Fiscal Year explicitly and must not be inferred from an accounting document ID or other ambient state.
 
-Book-wide overlap and single-open-year checks span independent Fiscal Year shards. The current design
-accepts the narrow race between those directory checks and authoritative shard commits.
+Book-wide overlap, contiguity, and single-open-year checks span independent Fiscal Year shards. The
+current design accepts the narrow race between those directory checks and authoritative shard
+commits because Fiscal Year definition changes are rare. The first Fiscal Year for an Accounting
+Book may start on any date. Later creation and date changes must connect exactly to adjacent
+effective ranges; deleting an edge year is allowed, but deleting a middle year is not.
 
 ## 14. Stable Business Failures
 
@@ -523,6 +531,7 @@ accepts the narrow race between those directory checks and authoritative shard c
 | `fiscal_year_not_found` | The requested Fiscal Year does not exist or is not visible under the applicable contract |
 | `fiscal_year_invalid_date_range` | The start and end dates do not form a valid range |
 | `fiscal_year_dates_overlap` | The date range overlaps another Fiscal Year in the Accounting Book |
+| `fiscal_year_dates_have_gap` | The operation would leave a gap between Fiscal Years in the Accounting Book |
 | `fiscal_year_cannot_be_updated` | The Fiscal Year is no longer an editable draft |
 | `fiscal_year_cannot_be_deleted` | The Fiscal Year is not an eligible unused draft |
 | `fiscal_year_cannot_be_opened` | Opening is invalid in the current state or under current Accounting Book conditions |

@@ -67,6 +67,63 @@ public sealed class FiscalYearDirectoryRepository(IGeneralConnectionFactory conn
             cancellationToken: cancellationToken)) > 0;
     }
 
+    public async Task<bool> WouldHaveGapWithRangeAsync(long accountingBookId, DateOnly startDate,
+        DateOnly effectiveEndDate, long? excludedId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var connection = await connectionFactory.OpenAsync(cancellationToken);
+        return await connection.ExecuteScalarAsync<int>(new CommandDefinition(
+            """
+            WITH periods AS
+            (
+                SELECT start_date, ISNULL(cancellation_date, end_date) AS effective_end_date
+                FROM fiscal_year_directory
+                WHERE accounting_book_id = @AccountingBookId AND id <> ISNULL(@ExcludedId, -1)
+                UNION ALL
+                SELECT @StartDate, @EffectiveEndDate
+            ), ordered AS
+            (
+                SELECT start_date,
+                    LAG(effective_end_date) OVER (ORDER BY start_date, effective_end_date) AS previous_end_date
+                FROM periods
+            )
+            SELECT COUNT(1)
+            FROM ordered
+            WHERE previous_end_date IS NOT NULL
+                AND DATEDIFF(DAY, previous_end_date, start_date) <> 1
+            """,
+            new
+            {
+                AccountingBookId = accountingBookId,
+                StartDate = startDate,
+                EffectiveEndDate = effectiveEndDate,
+                ExcludedId = excludedId
+            }, cancellationToken: cancellationToken)) > 0;
+    }
+
+    public async Task<bool> WouldHaveGapWithoutAsync(long accountingBookId, long excludedId,
+        CancellationToken cancellationToken = default)
+    {
+        var connection = await connectionFactory.OpenAsync(cancellationToken);
+        return await connection.ExecuteScalarAsync<int>(new CommandDefinition(
+            """
+            WITH ordered AS
+            (
+                SELECT start_date,
+                    LAG(ISNULL(cancellation_date, end_date)) OVER
+                        (ORDER BY start_date, ISNULL(cancellation_date, end_date)) AS previous_end_date
+                FROM fiscal_year_directory
+                WHERE accounting_book_id = @AccountingBookId AND id <> @ExcludedId
+            )
+            SELECT COUNT(1)
+            FROM ordered
+            WHERE previous_end_date IS NOT NULL
+                AND DATEDIFF(DAY, previous_end_date, start_date) <> 1
+            """,
+            new { AccountingBookId = accountingBookId, ExcludedId = excludedId },
+            cancellationToken: cancellationToken)) > 0;
+    }
+
     public async Task<bool> HasOtherOpenAsync(long accountingBookId, long excludedId,
         CancellationToken cancellationToken = default)
     {
