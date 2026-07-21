@@ -763,6 +763,8 @@ Authorization must distinguish at least:
 
 Capability routes require authorization. Trusted source identity, migration insertion, finalization, reconciliation, and rebuild must not be exposed as ordinary manual-entry privileges.
 
+**Current status**: routes require authentication, but the operation-specific policies and Accounting-Book ownership checks distinguished above are not yet implemented — any authenticated caller may currently invoke any operation. This is a deferred gap against this section's requirements, not an intended final state.
+
 ## 24. Errors
 
 The capability defines stable error constants for at least:
